@@ -23,13 +23,14 @@ chpi_raw_fname = '/home/jussi/Dropbox/bad_203_am_raw.fif'
 raw = mne.io.Raw(chpi_raw_fname, allow_maxshield=True)
 events = mne.find_events(raw, stim_channel='STI101', consecutive=False)  # only find 0-> transitions
 picks = mne.pick_types(raw.info, meg=True)
-event_id=[1,4]
+event_id=[1,4,8]
 tmin, tmax = -0.2, 0.8
 tmin, tmax = 0, 1
-chpi_epochs = mne.Epochs(raw, events, event_id, tmin, tmax, baseline=(None, 0), picks=picks, preload=True)
 
+for id in event_id:
+    chpi_epochs = mne.Epochs(raw, events, id, tmin, tmax, baseline=(None, 0), picks=picks, preload=True)
+    snr = chpi_snr_epochs(chpi_epochs)
 
-snr = chpi_snr_epochs(chpi_epochs)
 
 sys.exit()
 

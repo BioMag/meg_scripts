@@ -14,7 +14,8 @@ from mne.io.constants import FIFF
 import numpy as np
 import argparse
 import sys
-
+import os
+import warnings
 
 
 def chpi_freqs(info):
@@ -72,7 +73,6 @@ def chpi_snr_epochs(epochs, n_lineharm=2, channels='grad', hpi_coil='median'):
     for epn in range(nepochs):
         epdata = alldata[epn,:,:].transpose()
         coeffs = np.dot(inv_model, epdata)
-        print(coeffs)
         coeffs_hpi = coeffs[2 + 2*len(linefreqs):]
         resid_vars[:,epn] = np.var(epdata - np.dot(model, coeffs), 0)
         # get total hpi amplitudes by combining sine and cosine terms
@@ -117,41 +117,55 @@ if __name__ == '__main__':
     
     """ Default parameters """
     default_nharm = 2  # number of line harmonics to include
-    chpi_epoch_start, chpi_epoch_end = -.2, .8  # start/end of cHPI epochs, relative to stimulus trigger
+    default_epoch_start, default_epoch_end = -.2, .8  # start/end of cHPI epochs, relative to stimulus trigger
     
     """ Parse command line """
     parser = argparse.ArgumentParser(description='Weighted averaging of epochs according to cHPI SNR.')
-    parser.add_argument('fiff_file', help='Name of raw fiff file. Epochs for averaging will be taken from this file.')
+    parser.add_argument('snr_file', help='Name of raw fiff file. cHPI SNR will be computed from this file. Epochs for averaging will also be taken from this file, unless --epochs_file is specified.')
     #parser.add_argument('event', help='Event code or category.')
-    parser.add_argument('--chpi_file', type=str, default=None, help='File to compute cHPI SNR from. It must have the same number of epochs as the file to average.')
+    parser.add_argument('--epochs_file', type=str, default=None, help='Raw fiff file to use for averaging epochs. It must have the same number of epochs/categories as snr_file.')
     parser.add_argument('--nharm', type=int, default=default_nharm, choices=[0,1,2,3,4], help='Number of line frequency harmonics to include')
+    parser.add_argument('--epoch_start', type=float, default=default_epoch_start, help='Epoch start relative to trigger (s)')
+    parser.add_argument('--epoch_end', type=float, default=default_epoch_end, help='Epoch end relative to trigger (s)')
     args = parser.parse_args()
-    if not args.chpi_file:
-        args.chpi_file = args.fiff_file
     
-    """ Get the per-epoch SNRs for all events """
-    raw = mne.io.Raw(args.chpi_file, allow_maxshield=True)
-    events = mne.find_events(raw, stim_channel='STI101')
-    event_ids = np.unique(events[:,2])  # picks all event types
-    picks = mne.pick_types(raw.info, meg=True)
-    snrs = {}
+    fnbase = os.path.basename(os.path.splitext(args.snr_file)[0])
+    verbose = False
+    
+    # the cHPI SNR file is typically not maxfiltered, so ignore MaxShield warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')        
+        raw_chpi = mne.io.Raw(args.snr_file, allow_maxshield=True, verbose=verbose)
+        
+    events = mne.find_events(raw_chpi, stim_channel='STI101', verbose=verbose)
+    event_ids = np.unique(events[:,2])  # pick all categories
+    picks = mne.pick_types(raw_chpi.info, meg=True)
+    if args.epochs_file:
+        raw_epochs = mne.io.Raw(args.snr_file, allow_maxshield=True, verbose=verbose)
+
     for id in event_ids:
-        chpi_epochs = mne.Epochs(raw, events, id, tmin=chpi_epoch_start, tmax=chpi_epoch_end, baseline=None, picks=picks, preload=True)
-        snrs[id] = chpi_snr_epochs(chpi_epochs, n_lineharm=args.nharm, channels='grad', hpi_coil='median')
+        print('\nProcessing event', id)
+        print('Loading epochs for cHPI SNR...')        
+        chpi_epochs = mne.Epochs(raw_chpi, events, id, tmin=args.epoch_start, tmax=args.epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
+        print('Computing SNR...')        
+        w_snr = chpi_snr_epochs(chpi_epochs, n_lineharm=args.nharm, channels='grad', hpi_coil='median')
+        if not args.epochs_file:
+            data_epochs = chpi_epochs
+        else:
+            print('Loading epochs for averaging...')        
+            data_epochs = mne.Epochs(raw_epochs, events, id, tmin=args.epoch_start, tmax=args.epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
+        print('Computing weighted average...')
+        ev = weighted_average_epochs(data_epochs, w_snr)
+        fn = fnbase + '_cat' + str(id) +'-ave.fif'
+        print('Saving', fn)
+        ev.save(fn)
+        
+        
 
-    """ Average according to per-epoch SNRs """
-    raw = mne.io.Raw(args.fiff_file, allow_maxshield=True)
-    events = mne.find_events(raw, stim_channel='STI101')
-    picks = mne.pick_types(raw.info, meg=True)
-    event_id={'Eka': 1}
-    tmin, tmax = -0.2, 0.8
-    sss_epochs = mne.Epochs(raw, events, event_id, tmin, tmax, baseline=(None, 0), picks=picks, preload=True)
-    weights = snr_grad
-    ev = weighted_average_epochs(sss_epochs, weights)
-    ev.savgol_filter(60)
-    ev.plot()
-    plt.figure()
-    ev0 = sss_epochs.average()
-    ev0.savgol_filter(60)
-    ev0.plot()
 
+
+
+        
+        
+        
+        
