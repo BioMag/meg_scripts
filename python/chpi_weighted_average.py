@@ -2,6 +2,15 @@
 """
 Weighted averaging of epochs according to continuous HPI (cHPI) signal-to-noise.
 
+TODO:
+
+testcases:
+set weights to 1, verify avg
+set weights to 0, verify avg
+plot weights as func of time
+
+more verbose reporting
+get category names for averaging
 
 @author: jussi
 """
