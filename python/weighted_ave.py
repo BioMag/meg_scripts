@@ -103,7 +103,7 @@ def weighted_average_epochs(epochs, weights):
     """  Compute weighted average of epochs. epochs is a mne.Epochs object.
     weights is a list or 1-d numpy array with leading dim of n_epochs.
     The weighted average is divided by the sum of weights. """
-    
+  
     weights = np.array(weights)  # will accept either list or numpy array
     n_epochs = len(epochs)
     if not len(weights) == n_epochs:
@@ -112,7 +112,7 @@ def weighted_average_epochs(epochs, weights):
     epw = epochs.get_data() * w_ / np.sum(w_) # normalize
     epw_av = np.sum(epw, axis=0)
     return epochs._evoked_from_epoch_data(epw_av, epochs.info, None, n_epochs, FIFF.FIFFV_ASPECT_AVERAGE)
-   
+    return mne.EpochsArray
 
 
 """ Get the per-epoch SNRs """

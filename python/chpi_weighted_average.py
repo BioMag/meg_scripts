@@ -4,6 +4,7 @@ Weighted averaging of epochs according to continuous HPI (cHPI) signal-to-noise.
 
 TODO:
 
+
 testcases:
 set weights to 1, verify avg
 set weights to 0, verify avg
@@ -106,21 +107,15 @@ def chpi_snr_epochs(epochs, n_lineharm=2, channels='grad', hpi_coil='median'):
     
     return snr
 
-
-def weighted_average_epochs(epochs, weights):
-    """  Compute weighted average of epochs. epochs is a mne.Epochs object.
-    weights is a list or 1-d numpy array with leading dim of n_epochs.
-    The weighted average is divided by the sum of weights. """
-    
+def weigh_epochs(epochs, weights):
+    """ Weigh epochs in mne.Epochs object (elementwise multiply by weights vector). """
     weights = np.array(weights)  # will accept either list or numpy array
     n_epochs = len(epochs)
     if not len(weights) == n_epochs:
         raise ValueError('Need as many weights as epochs')
     w_ = weights.squeeze()[:,np.newaxis,np.newaxis]  # reshape for broadcasting
-    epw = epochs.get_data() * w_ / np.sum(w_) # normalize
-    epw_av = np.sum(epw, axis=0)
-    return epochs._evoked_from_epoch_data(epw_av, epochs.info, None, n_epochs, FIFF.FIFFV_ASPECT_AVERAGE)
-   
+    # normalize by n_epochs/sum(weights), so that averaging will yield a correct result
+    epochs._data *=  n_epochs * w_ / np.sum(w_)
 
 if __name__ == '__main__':
     
@@ -137,7 +132,7 @@ if __name__ == '__main__':
     parser.add_argument('--epoch_start', type=float, default=default_epoch_start, help='Epoch start relative to trigger (s)')
     parser.add_argument('--epoch_end', type=float, default=default_epoch_end, help='Epoch end relative to trigger (s)')
     args = parser.parse_args()
-    
+   
     fnbase = os.path.basename(os.path.splitext(args.snr_file)[0])
     verbose = False
     
@@ -145,13 +140,13 @@ if __name__ == '__main__':
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')        
         raw_chpi = mne.io.Raw(args.snr_file, allow_maxshield=True, verbose=verbose)
-        
     events = mne.find_events(raw_chpi, stim_channel='STI101', verbose=verbose)
     event_ids = np.unique(events[:,2])  # pick all categories
     picks = mne.pick_types(raw_chpi.info, meg=True)
     if args.epochs_file:
         raw_epochs = mne.io.Raw(args.snr_file, allow_maxshield=True, verbose=verbose)
 
+    evokeds = [] 
     for id in event_ids:
         print('\nProcessing event', id)
         print('Loading epochs for cHPI SNR...')        
@@ -164,10 +159,15 @@ if __name__ == '__main__':
             print('Loading epochs for averaging...')        
             data_epochs = mne.Epochs(raw_epochs, events, id, tmin=args.epoch_start, tmax=args.epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
         print('Computing weighted average...')
-        ev = weighted_average_epochs(data_epochs, w_snr)
-        fn = fnbase + '_cat' + str(id) +'-ave.fif'
-        print('Saving', fn)
-        ev.save(fn)
+        # DEBUG: unity weights
+        w_snr = np.ones(w_snr.shape)        
+        #
+        weigh_epochs(data_epochs, w_snr)
+        evokeds.append(data_epochs.average())
+
+    fn = fnbase + '_chpi_weighted-ave.fif'
+    print('Saving', fn)
+    mne.write_evokeds(fn, evokeds)
         
         
 
