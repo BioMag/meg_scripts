@@ -17,6 +17,14 @@ class Elekta_event(object):
     def __init__(self):
         pass
 
+    def __repr__(self):
+        return '<Elekta_event | Name: {} Comment: {} NewBits: {} OldBits: {} NewMask: {} OldMask: {} Delay: {}>'.format(
+        self.Name, self.Comment, self.NewBits, self.OldBits, self.NewMask, self.OldMask, self.Delay)
+        
+    @getter
+    
+
+
 class Elekta_category(object):
     """ Represents averaging category in Elekta system, as defined in acquisition settings. """
     

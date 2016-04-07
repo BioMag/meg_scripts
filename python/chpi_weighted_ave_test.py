@@ -42,6 +42,11 @@ def events_from_dacq_pars(data):
     """ Create events and event_id from Elekta data acquisition parameters. """
     evs, cats, av_info = elekta_averaging_info(data)
     events = mne.find_events(raw, stim_channel='STI101', consecutive=True)
+    for ev in evs:
+        premask = int(ev.OldMask)
+        postmask = int(ev.NewMask)
+        
+    
     # -apply bitmasking from Elekta event categories
     # -compare with defined events
     # -produce array with [t 0 Eventcode], where Eventcode is the Elekta event number
