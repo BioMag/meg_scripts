@@ -26,6 +26,10 @@ class Elekta_category(object):
     def __init__(self):
         pass
     
+    def __repr__(self):
+        return '<Elekta_category | Comment: {} Event: {} ReqEvent: {} Start: {} End: {}>'.format(
+        self.Comment, self.Event, self.ReqEvent, self.Start, self.End)
+    
 class Elekta_averaging_params(object):
     """ Averaging parameters for Elekta system, as defined in acquisition settings. """
 
@@ -37,6 +41,10 @@ class Elekta_averaging_params(object):
         acqdi = _acqpars_dict(acq_pars)
         for var in Elekta_averaging_params.vars:
             setattr(self, var, acqdi['ERF'+var])
+            
+    def __repr__(self):
+        return '<Elekta_averaging_params>'
+        
 
 def _acqpars_gen(acq_pars):
     """ Yields key/value pairs from a string of acquisition parameters. """
@@ -58,29 +66,31 @@ def _events_from_acq_pars(acq_pars):
     acqdi = _acqpars_dict(acq_pars)
     ncateg = int(acqdi['ERFncateg'])
     events = {}
-    for evnum in [str(x).zfill(2) for x in range(1,ncateg)]:  # '01', '02', etc.
+    for evnum in [str(x).zfill(2) for x in range(1,ncateg+1)]:  # '01', '02', etc.
         event = Elekta_event()
         for var in Elekta_event.vars:
-            eventvar = lambda var, evnum=evnum: 'ERFevent'+var+evnum  # e.g. 'ERFEventName01'
-            setattr(event, var, acqdi[eventvar(var)])
-        events[evnum] = event
+            setattr(event, var, acqdi['ERFevent'+var+evnum])
+        events[int(evnum)] = event  # key by event number, that's how cats reference them
     return events
 
-def _categories_from_acq_pars(acq_pars):
+def _categories_from_acq_pars(acq_pars, all_categories=False):
     acqdi = _acqpars_dict(acq_pars)
     nevent = int(acqdi['ERFnevent'])
     cats = {}
-    for catnum in [str(x).zfill(2) for x in range(1,nevent)]:  # '01', '02', etc.
+    for catnum in [str(x).zfill(2) for x in range(1,nevent+1)]:  # '01', '02', etc.
         cat = Elekta_category()
         for var in Elekta_category.vars:
-            catvar = lambda var, catnum=catnum: 'ERFcat'+var+catnum  # e.g. 'ERFcatName01'
-            setattr(cat, var, acqdi[catvar(var)])
-        cats[catnum] = cat
+            setattr(cat, var, acqdi['ERFcat'+var+catnum])
+        if int(cat.State) == 1 or all_categories:  # category enabled
+            cats[cat.Comment] = cat
     return cats
 
-def elekta_averaging_info(acq_pars):
-    """ Returns event and category dicts, given info.['acq_pars'] """
-    return _events_from_acq_pars(acq_pars), _categories_from_acq_pars(acq_pars), Elekta_averaging_params(acq_pars)
+def elekta_averaging_info(data, all_categories=False):
+    """ Returns event and category dicts. data is instance of Raw, Epochs or Evoked.
+    If all_categories==True, return also categories that are marked disabled in 
+    data acquisition settings. """
+    acq_pars = data.info['acq_pars']
+    return _events_from_acq_pars(acq_pars), _categories_from_acq_pars(acq_pars, all_categories), Elekta_averaging_params(acq_pars)
     
 
 
