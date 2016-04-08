@@ -34,20 +34,40 @@ tmin, tmax = 0, 1
 eav = Elekta_averager(raw.info['acq_pars'])
 events = mne.find_events(raw, stim_channel='STI101', consecutive=True)
 
-
-
+""" Transform events into corresponding list of Elekta events. """
 events_ = events.copy()
 events_[:,2] = 0
 for n,ev in eav.events.iteritems():
-    if eav.event_in_use(ev):
-        pre_ok = np.bitwise_and(int(ev.OldMask), events[:,1]) == int(ev.OldBits)
-        post_ok = np.bitwise_and(int(ev.NewMask), events[:,2]) == int(ev.NewBits)
-        ok_ind = np.where(pre_ok & post_ok)
-        if np.all(events_[ok_ind,2] == 0):
-            events_[ok_ind,2] = int(ev.Name)
-        else:
-            raise Exception('Found multiple trigger transitions matching Elekta event '+ev.Name)
+    pre_ok = np.bitwise_and(int(ev.OldMask), events[:,1]) == int(ev.OldBits)
+    post_ok = np.bitwise_and(int(ev.NewMask), events[:,2]) == int(ev.NewBits)
+    ok_ind = np.where(pre_ok & post_ok)
+    if np.all(events_[ok_ind,2] == 0):
+        events_[ok_ind,2] |= 1 << (int(ev.Name) - 1)  # switch on the bit corresponding to event number
+
+""" Transform Elekta events into averaging categories. """
+for n,cat in eav.categories.iteritems():
+    refEvents_t = np.where(events_[:,2] & (1 << int(cat.Event)-1))
+    reqEvents_t = np.where(events_[:,2] & (1 << int(cat.ReqEvent)-1))
     
+
+
+
+
+
+
+
+for each cat:
+    find where reqEvents and refEvents occur
+    take times = t where refEvents occur and reqEvent occurs in given window
+    write t and category code into array
+produce event_id with category codes and comments
+
+
+
+    
+    
+            
+        
     
     
     
