@@ -17,7 +17,6 @@ class Elekta_event(object):
     
     def __init__(self, name, channel, newbits, oldbits, newmask, oldmask, delay, comment):
         self.name = name
-        self.number = int(name)     # for convenience; dacq variable 'Name' actually represents event number 1..32
         self.channel = channel
         self.newbits = int(newbits)
         self.oldbits = int(oldbits)
@@ -112,7 +111,7 @@ class Elekta_averager(object):
                 acq_key = 'ERFevent'+var+evnum  # name of dacq variable, e.g. 'ERFeventNewBits01'
                 class_key = var.lower()         # corresponding instance variable, e.g. 'newbits'
                 evdi[class_key] = self.acq_dict[acq_key]
-            events[int(evdi['name'])] = Elekta_event(**evdi)  # events are keyed by number starting from 1
+            events[int(evnum)] = Elekta_event(**evdi)  # events are keyed by number starting from 1
         return events
 
     def _categories_from_acq_pars(self, all_categories=False):
