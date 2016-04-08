@@ -12,14 +12,18 @@ import mne
 from mne.datasets import sample
 import sys
 import matplotlib.pyplot as plt
-from elekta_avg import elekta_averaging_info
+from elekta_avg import Elekta_averager
 #from chpi_weighted_average import chpi_snr_epochs, weighted_average_epochs
 
 
 
+if sys.platform == 'win32':
+    DATA_ROOT = 'C:/Users/HUS20664877/Dropbox/'
+else:  # Linux
+    DATA_ROOT = '/home/jussi/Dropbox/'
 
-""" Get the per-epoch SNRs """
-chpi_raw_fname = '/home/jussi/Dropbox/bad_203_am_raw.fif'
+
+chpi_raw_fname = DATA_ROOT+'bad_203_am_raw.fif'
 raw = mne.io.Raw(chpi_raw_fname, allow_maxshield=True)
 
 picks = mne.pick_types(raw.info, meg=True)
@@ -27,20 +31,59 @@ event_id=[1,4,8]
 tmin, tmax = -0.2, 0.8
 tmin, tmax = 0, 1
 
-evs, cats, av_info = elekta_averaging_info(raw)
+eav = Elekta_averager(raw.info['acq_pars'])
+events = mne.find_events(raw, stim_channel='STI101', consecutive=True)
 
-events = mne.find_events(raw, stim_channel='STI101', consecutive=False)
 
-chpi_epochs = mne.Epochs(raw, events, id, tmin=args.epoch_start, tmax=args.epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
+
+events_ = events.copy()
+events_[:,2] = 0
+for n,ev in eav.events.iteritems():
+    if eav.event_in_use(ev):
+        pre_ok = np.bitwise_and(int(ev.OldMask), events[:,1]) == int(ev.OldBits)
+        post_ok = np.bitwise_and(int(ev.NewMask), events[:,2]) == int(ev.NewBits)
+        ok_ind = np.where(pre_ok & post_ok)
+        if np.all(events_[ok_ind,2] == 0):
+            events_[ok_ind,2] = int(ev.Name)
+        else:
+            raise Exception('Found multiple trigger transitions matching Elekta event '+ev.Name)
+    
+    
+    
+    
+
+
+
+
+
+chpi_epochs = mne.Epochs(raw, events, id, tmin=-.2, tmax=.8, baseline=None, picks=picks, preload=True)
+
+
+
 
 
 """"
-[t x_pre x_post]
+events array is of form:
+
+[t0 x_pre x_post
+t1 x_pre x_post
+...
+]
+
+For each Elekta event, find array rows where:
+
+OldMask & x_pre == OldBits
+NewMask & x_post == NewBits
+
+
+
+
+
 """
 
 def events_from_dacq_pars(data):
     """ Create events and event_id from Elekta data acquisition parameters. """
-    evs, cats, av_info = elekta_averaging_info(data)
+    
     events = mne.find_events(raw, stim_channel='STI101', consecutive=True)
     for ev in evs:
         premask = int(ev.OldMask)
