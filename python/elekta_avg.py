@@ -5,8 +5,6 @@ Created on Tue Apr  5 09:34:26 2016
 Get averaging info (events and categories) defined in the acquisition parameters for 
 Elekta TRIUX/Vectorview systems.
 
-TODO: adapt event & cat creation code for new objects
-
 @author: jussi
 """
 
@@ -54,8 +52,8 @@ class Elekta_category(object):
         self.subave = True if subave==u'1' else False
     
     def __repr__(self):
-        return '<Elekta_category | comment: {} event: {} reqevent: {} start: {} end: {}>'.format(
-        self.comment, self.event, self.reqevent, self.start, self.end)
+        return '<Elekta_category | comment: {} event: {} reqevent: {} reqwhen: {} reqwithin: {} start: {} end: {}>'.format(
+        self.comment, self.event, self.reqevent, self.reqwhen, self.reqwithin, self.start, self.end)
     
 
 class Elekta_averager(object):
@@ -68,14 +66,20 @@ class Elekta_averager(object):
             'megSlope', 'megSpike', 'ncateg', 'nevent', 'stimSource', 'triggerMap', 'update', 'version',
             'artefIgnore', 'averUpdate']    
 
+    acq_var_magic = ['ERF', 'DEF', 'ACQ', 'TCP']  # dacq variable names start with one of these
+
     def __init__(self, acq_pars):
         """ acq_pars usually is obtained as Data.info['acq_pars'], where Data can be 
         instance of Raw, Epochs or Evoked. """
         self.acq_dict = Elekta_averager._acqpars_dict(acq_pars)
+        # sets instance variables (lowercase versions of dacq variable names), to avoid a lot of boilerplate code
         for var in Elekta_averager.vars:
-            setattr(self, var, self.acq_dict['ERF'+var])
-        self.ncateg = int(self.ncateg)
-        self.nevent = int(self.nevent)
+            val = self.acq_dict['ERF'+var]
+            if var[:3] in ['mag','meg']:
+                val = float(val)
+            elif var in ['ncateg','nevent']:
+                val = int(val)
+            setattr(self, var.lower(), val)
         self.events = self._events_from_acq_pars()
         self.categories = self._categories_from_acq_pars()
 
@@ -86,13 +90,12 @@ class Elekta_averager(object):
     @staticmethod
     def _acqpars_gen(acq_pars):
         """ Yields key/value pairs from a string of acquisition parameters. """
-        acq_keys = ['ERF', 'DEF', 'ACQ', 'TCP']  # keys start with one of these
         for line in acq_pars.split():
-            if any([line.startswith(x) for x in acq_keys]):
+            if any([line.startswith(x) for x in Elekta_averager.acq_var_magic]):
                 key = line
                 val = ''
             else:
-                val += ' ' + line if val else line
+                val += ' ' + line if val else line  # dacq splits items with spaces into multiple lines
             yield key, val
 
     @staticmethod
@@ -106,10 +109,10 @@ class Elekta_averager(object):
         for evnum in [str(x).zfill(2) for x in range(1,self.ncateg+1)]:  # '01', '02', etc.
             evdi = {}
             for var in Elekta_event.vars:
-                acq_key = 'ERFevent'+var+evnum
-                class_key = var.lower()
+                acq_key = 'ERFevent'+var+evnum  # name of dacq variable, e.g. 'ERFeventNewBits01'
+                class_key = var.lower()         # corresponding instance variable, e.g. 'newbits'
                 evdi[class_key] = self.acq_dict[acq_key]
-            events[int(evdi['name'])] = Elekta_event(**evdi)
+            events[int(evdi['name'])] = Elekta_event(**evdi)  # events are keyed by number starting from 1
         return events
 
     def _categories_from_acq_pars(self, all_categories=False):

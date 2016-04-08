@@ -52,10 +52,10 @@ for n,cat in eav.categories.iteritems():
     if cat.reqevent:
         reqEvents_t = np.where(events_[:,2] & (1 << cat.reqevent-1))
     # TODO: check what reqwhen means (0/1 for before/after?) 
-    for t in refEvents_t:
-        if t-cat.reqwhen
+    #for t in refEvents_t:
+    #    if t-cat.reqwhen
         
-    cat_triggers[refEvents_t,2] = 1
+    #cat_triggers[refEvents_t,2] = 1
     
     
     
