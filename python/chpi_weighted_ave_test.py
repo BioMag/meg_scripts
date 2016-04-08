@@ -55,7 +55,7 @@ for n,cat in eav.categories.iteritems():
 
 
 
-
+"""
 for each cat:
     find where reqEvents and refEvents occur
     take times = t where refEvents occur and reqEvent occurs in given window
@@ -63,7 +63,7 @@ for each cat:
 produce event_id with category codes and comments
 
 
-
+"""
     
     
             

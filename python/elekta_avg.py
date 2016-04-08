@@ -5,6 +5,8 @@ Created on Tue Apr  5 09:34:26 2016
 Get averaging info (events and categories) defined in the acquisition parameters for 
 Elekta TRIUX/Vectorview systems.
 
+TODO: adapt event & cat creation code for new objects
+
 @author: jussi
 """
 
@@ -12,14 +14,23 @@ Elekta TRIUX/Vectorview systems.
 class Elekta_event(object):
     """ Represents trigger event in Elekta system.  """
     
+    # original dacq variable names
     vars = ['Name', 'Channel', 'NewBits', 'OldBits', 'NewMask', 'OldMask', 'Delay', 'Comment']
     
-    def __init__(self):
-        pass
+    def __init__(self, name, channel, newbits, oldbits, newmask, oldmask, delay, comment):
+        self.name = name
+        self.number = int(name)     # for convenience; dacq variable 'Name' actually represents event number 1..32
+        self.channel = channel
+        self.newbits = int(newbits)
+        self.oldbits = int(oldbits)
+        self.newmask = int(newmask)
+        self.oldmask = int(oldmask)
+        self.delay = int(delay)
+        self.comment = comment
 
     def __repr__(self):
         return '<Elekta_event | Name: {} Comment: {} NewBits: {} OldBits: {} NewMask: {} OldMask: {} Delay: {}>'.format(
-        self.Name, self.Comment, self.NewBits, self.OldBits, self.NewMask, self.OldMask, self.Delay)
+        self.name, self.comment, self.newbits, self.oldbits, self.newmask, self.oldmask, self.delay)
 
 
 class Elekta_category(object):
@@ -28,8 +39,19 @@ class Elekta_category(object):
     vars =  ['Comment', 'Display', 'Start', 'State', 'End', 'Event', 'Nave', 'ReqEvent', 
     'ReqWhen', 'ReqWithin',  'SubAve']
 
-    def __init__(self):
-        pass
+    def __init__(self, comment, display, start, state, end, event, nave, reqevent, reqwhen, reqwithin, subave):
+        # TODO: some typecasts
+        self.comment = comment
+        self.display = display
+        self.start = start
+        self.state = state
+        self.end = end
+        self.event = event
+        self.nave = nave
+        self.reqevent = reqevent
+        self.reqwhen = reqwhen
+        self.reqwithin = reqwithin
+        self.subave = subave
     
     def __repr__(self):
         return '<Elekta_category | Comment: {} Event: {} ReqEvent: {} Start: {} End: {}>'.format(
@@ -52,8 +74,6 @@ class Elekta_averager(object):
         self.acq_dict = Elekta_averager._acqpars_dict(acq_pars)
         for var in Elekta_averager.vars:
             setattr(self, var, self.acq_dict['ERF'+var])
-        self.ncateg = int(self.ncateg)
-        self.nevent = int(self.nevent)
         self.events = self._events_from_acq_pars()
         self.categories = self._categories_from_acq_pars()
 
@@ -82,10 +102,12 @@ class Elekta_averager(object):
     def _events_from_acq_pars(self):
         events = {}
         for evnum in [str(x).zfill(2) for x in range(1,self.ncateg+1)]:  # '01', '02', etc.
-            event = Elekta_event()
             for var in Elekta_event.vars:
-                key = 'ERFevent'+var+evnum
+                tdi = {}
+                acq_key = 'ERFevent'+var+evnum
                 if key in self.acq_dict:
+                    clsvar = var.lower()
+                    
                     setattr(event, var, self.acq_dict[key])
                 else:
                     raise Exception('Required key not in data acquisition parameters: '+key)
