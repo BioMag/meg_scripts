@@ -34,20 +34,30 @@ tmin, tmax = 0, 1
 eav = Elekta_averager(raw.info['acq_pars'])
 events = mne.find_events(raw, stim_channel='STI101', consecutive=True)
 
-""" Transform events into corresponding list of Elekta events. """
+""" Replace each trigger transition by the corresponding Elekta event(s) (if any). """
 events_ = events.copy()
 events_[:,2] = 0
 for n,ev in eav.events.iteritems():
-    pre_ok = np.bitwise_and(int(ev.OldMask), events[:,1]) == int(ev.OldBits)
-    post_ok = np.bitwise_and(int(ev.NewMask), events[:,2]) == int(ev.NewBits)
+    pre_ok = np.bitwise_and(ev.oldmask, events[:,1]) == ev.oldbits
+    post_ok = np.bitwise_and(ev.newbits, events[:,2]) == ev.newbits
     ok_ind = np.where(pre_ok & post_ok)
     if np.all(events_[ok_ind,2] == 0):
-        events_[ok_ind,2] |= 1 << (int(ev.Name) - 1)  # switch on the bit corresponding to event number
+        events_[ok_ind,2] |= 1 << (ev.number - 1)  # switch on the bit corresponding to event number
 
-""" Transform Elekta events into averaging categories. """
+""" Replace Elekta events by 'category triggers', i.e. times where conditions for averaging a given
+category are fulfilled. This requires consideration of both ref. and req. events.  """
+cat_triggers = events.copy()
 for n,cat in eav.categories.iteritems():
-    refEvents_t = np.where(events_[:,2] & (1 << int(cat.Event)-1))
-    reqEvents_t = np.where(events_[:,2] & (1 << int(cat.ReqEvent)-1))
+    refEvents_t = np.where(events_[:,2] & (1 << cat.event-1))
+    if cat.reqevent:
+        reqEvents_t = np.where(events_[:,2] & (1 << cat.reqevent-1))
+    # TODO: check what reqwhen means (0/1 for before/after?) 
+    for t in refEvents_t:
+        if t-cat.reqwhen
+        
+    cat_triggers[refEvents_t,2] = 1
+    
+    
     
 
 

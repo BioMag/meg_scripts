@@ -29,33 +29,33 @@ class Elekta_event(object):
         self.comment = comment
 
     def __repr__(self):
-        return '<Elekta_event | Name: {} Comment: {} NewBits: {} OldBits: {} NewMask: {} OldMask: {} Delay: {}>'.format(
+        return '<Elekta_event | name: {} comment: {} new bits: {} old bits: {} new mask: {} old mask: {} delay: {}>'.format(
         self.name, self.comment, self.newbits, self.oldbits, self.newmask, self.oldmask, self.delay)
 
 
 class Elekta_category(object):
     """ Represents averaging category in Elekta system. """
-    
+
+    # original dacq variable names    
     vars =  ['Comment', 'Display', 'Start', 'State', 'End', 'Event', 'Nave', 'ReqEvent', 
     'ReqWhen', 'ReqWithin',  'SubAve']
 
     def __init__(self, comment, display, start, state, end, event, nave, reqevent, reqwhen, reqwithin, subave):
-        # TODO: some typecasts
         self.comment = comment
-        self.display = display
-        self.start = start
-        self.state = state
-        self.end = end
-        self.event = event
-        self.nave = nave
-        self.reqevent = reqevent
-        self.reqwhen = reqwhen
-        self.reqwithin = reqwithin
-        self.subave = subave
+        self.display = True if display==u'1' else False
+        self.state = True if state==u'1' else False
+        self.start = float(start)
+        self.end = float(end)
+        self.nave = int(nave)
+        self.event = int(event)  # categories are referred to by numbers
+        self.reqevent = int(reqevent)
+        self.reqwhen = float(reqwhen)
+        self.reqwithin = float(reqwithin)
+        self.subave = True if subave==u'1' else False
     
     def __repr__(self):
-        return '<Elekta_category | Comment: {} Event: {} ReqEvent: {} Start: {} End: {}>'.format(
-        self.Comment, self.Event, self.ReqEvent, self.Start, self.End)
+        return '<Elekta_category | comment: {} event: {} reqevent: {} start: {} end: {}>'.format(
+        self.comment, self.event, self.reqevent, self.start, self.end)
     
 
 class Elekta_averager(object):
@@ -74,6 +74,8 @@ class Elekta_averager(object):
         self.acq_dict = Elekta_averager._acqpars_dict(acq_pars)
         for var in Elekta_averager.vars:
             setattr(self, var, self.acq_dict['ERF'+var])
+        self.ncateg = int(self.ncateg)
+        self.nevent = int(self.nevent)
         self.events = self._events_from_acq_pars()
         self.categories = self._categories_from_acq_pars()
 
@@ -102,30 +104,24 @@ class Elekta_averager(object):
     def _events_from_acq_pars(self):
         events = {}
         for evnum in [str(x).zfill(2) for x in range(1,self.ncateg+1)]:  # '01', '02', etc.
+            evdi = {}
             for var in Elekta_event.vars:
-                tdi = {}
                 acq_key = 'ERFevent'+var+evnum
-                if key in self.acq_dict:
-                    clsvar = var.lower()
-                    
-                    setattr(event, var, self.acq_dict[key])
-                else:
-                    raise Exception('Required key not in data acquisition parameters: '+key)
-            events[int(evnum)] = event  # key dict by event number, that's how cats reference them
+                class_key = var.lower()
+                evdi[class_key] = self.acq_dict[acq_key]
+            events[int(evdi['name'])] = Elekta_event(**evdi)
         return events
 
     def _categories_from_acq_pars(self, all_categories=False):
         cats = {}
         for catnum in [str(x).zfill(2) for x in range(1,self.nevent+1)]:  # '01', '02', etc.
-            cat = Elekta_category()
+            catdi = {}
             for var in Elekta_category.vars:
-                key = 'ERFcat'+var+catnum
-                if key in self.acq_dict:
-                    setattr(cat, var, self.acq_dict[key])
-                else:
-                    raise Exception('Required key not in data acquisition parameters: '+key)
-            if int(cat.State) == 1 or all_categories:  # category enabled
-                cats[cat.Comment] = cat
+                acq_key = 'ERFcat'+var+catnum
+                class_key = var.lower()
+                catdi[class_key] = self.acq_dict[acq_key]
+            if int(catdi['state']) == 1 or all_categories:  # category enabled
+                cats[catdi['comment']] = Elekta_category(**catdi)
         return cats
         
     def _events_in_use(self):
