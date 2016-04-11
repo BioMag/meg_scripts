@@ -8,10 +8,11 @@ TODO:
 testcases:
 set weights to 1, verify avg
 set weights to 0, verify avg
-plot weights as func of time
+plot weights as func of time, cmp w/ raw data snr script
 
 more verbose reporting
 get category names for averaging
+bad channels?
 
 @author: jussi
 """
@@ -26,6 +27,7 @@ import argparse
 import sys
 import os
 import warnings
+from elekta_avg import Elekta_averager
 
 
 def chpi_freqs(info):
@@ -47,9 +49,7 @@ def chpi_snr_epochs(epochs, n_lineharm=2, channels='grad', hpi_coil='median'):
     'best' selects best coil at each epoch. 'median' selects the coil with
     the median SNR value at each epoch. 'worst' selects the coil with lowest
     SNR at each epoch.
-    
-    TODO:
-    handling of bad channels?
+
     """
 
     if len(epochs.event_id) > 1:
@@ -140,15 +140,20 @@ if __name__ == '__main__':
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')        
         raw_chpi = mne.io.Raw(args.snr_file, allow_maxshield=True, verbose=verbose)
-    events = mne.find_events(raw_chpi, stim_channel='STI101', verbose=verbose)
-    event_ids = np.unique(events[:,2])  # pick all categories
     picks = mne.pick_types(raw_chpi.info, meg=True)
     if args.epochs_file:
         raw_epochs = mne.io.Raw(args.snr_file, allow_maxshield=True, verbose=verbose)
+        eav = Elekta_averager(raw_epochs.info['acq_pars'])
+    else:
+        eav = Elekta_averager(raw_chpi.info['acq_pars'])
+
+    events = mne.find_events(raw_chpi, stim_channel='STI101', verbose=verbose)
+    #event_ids = np.unique(events[:,2])  # pick all categories
+    event_ids = Elekta_averager.simple_event_id_dict()
 
     evokeds = [] 
-    for id in event_ids:
-        print('\nProcessing event', id)
+    for catname, id in event_ids.iteritems():
+        print('\nProcessing event', id, ':', catname)
         print('Loading epochs for cHPI SNR...')        
         chpi_epochs = mne.Epochs(raw_chpi, events, id, tmin=args.epoch_start, tmax=args.epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
         print('Computing SNR...')        

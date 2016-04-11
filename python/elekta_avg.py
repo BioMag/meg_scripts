@@ -126,6 +126,21 @@ class Elekta_averager(object):
                 cats[catdi['comment']] = Elekta_category(**catdi)
         return cats
         
+    def simple_event_id_dict(self):
+        """ Returns a simple event id dict that can be used with mne.find_events.
+        This method only supports trigger line transitions 0 -> x. """
+        catdi = {}
+        for cat in self.categories.values():
+            if cat.state == 1:
+                catevent = self.events[catdi.event]
+                trig = catevent.newbits
+                if catevent.reqevent:
+                    raise ValueError('Category contains a required event. Not implemented yet.')
+                if catevent.oldbits:
+                    raise ValueError('Category contains a transition other than 0 -> x. Not implemented yet.')
+                catdi[cat.comment] = trig
+        return catdi
+        
     def _events_in_use(self):
         eset = set()
         for cat in self.categories.values():
