@@ -8,6 +8,8 @@ Elekta TRIUX/Vectorview systems.
 @author: jussi
 """
 
+import numpy as np
+
 
 class Elekta_event(object):
     """ Represents trigger event in Elekta system.  """
@@ -22,8 +24,9 @@ class Elekta_event(object):
         self.oldbits = int(oldbits)
         self.newmask = int(newmask)
         self.oldmask = int(oldmask)
-        self.delay = int(delay)
+        self.delay = float(delay)
         self.comment = comment
+        self.in_use = False  # whether event is referred to by a category
 
     def __repr__(self):
         return '<Elekta_event | name: {} comment: {} new bits: {} old bits: {} new mask: {} old mask: {} delay: {}>'.format(
@@ -81,10 +84,13 @@ class Elekta_averager(object):
             setattr(self, var.lower(), val)
         self.events = self._events_from_acq_pars()
         self.categories = self._categories_from_acq_pars()
+        for cat in self.categories.values():
+            if cat.event:
+                self.events[cat.event].in_use = True
 
     def __repr__(self):
         return '<Elekta_averager | Version: {} Categories: {} Events: {} StimSource: {}>'.format(
-        self.version, self.ncateg, self.nevent, self.stimSource)
+        self.version, self.ncateg, self.nevent, self.stimsource)
 
     @staticmethod
     def _acqpars_gen(acq_pars):
@@ -126,16 +132,37 @@ class Elekta_averager(object):
                 cats[catdi['comment']] = Elekta_category(**catdi)
         return cats
         
-    def _events_in_use(self):
-        eset = set()
+    def events_from_mne_triggers(self, mne_events):
+        """ Creates list of dacq events based on mne trigger transitions list.
+        mne_events is typically given by mne.find_events (use consecutive=True
+        to get all transitions). Output consists of rows in the form [t, 0, event_code]
+        where t is time in samples. """
+        events_ = mne_events.copy()
+        events_[:,1] = 0
+        events_[:,2] = 0
+        for n,ev in self.events.iteritems():
+            if ev.in_use:
+                pre_ok = np.bitwise_and(ev.oldmask, mne_events[:,1]) == ev.oldbits
+                post_ok = np.bitwise_and(ev.newbits, mne_events[:,2]) == ev.newbits
+                ok_ind = np.where(pre_ok & post_ok)
+                if np.all(events_[ok_ind,2] == 0):
+                    # this can be used for bitwise coding of multiple events
+                    #events_[ok_ind,2] |= 1 << (ev.number - 1)  # switch on the bit corresponding to event number
+                    events_[ok_ind,2] = n
+                else:
+                    raise Exception('Multiple dacq events match trigger transition')
+        return events_, self._event_id_dict()
+        
+    def _event_id_dict(self):
+        """ Returns a simple event id dict that can be used with mne.find_events.
+        Keys are category comments and values are the corresponding ref. event numbers. """
+        catdi = {}
         for cat in self.categories.values():
-            eset.add(cat.Event)
-            eset.add(cat.ReqEvent)
-        eset.discard(u'0')  # indicates that no event for referred to
-        return eset
-            
-    def event_in_use(self, event):
-        return event.Name in self._events_in_use()
+            if cat.state == 1:
+                catdi[cat.comment] = cat.event
+            if cat.reqevent:
+                raise ValueError('Req. events not supported yet')
+        return catdi
         
         
 

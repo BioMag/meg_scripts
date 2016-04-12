@@ -25,16 +25,25 @@ else:  # Linux
 
 chpi_raw_fname = DATA_ROOT+'bad_203_am_raw.fif'
 raw = mne.io.Raw(chpi_raw_fname, allow_maxshield=True)
+#raw = mne.io.Raw('avg_setup_test.fif')
 
 picks = mne.pick_types(raw.info, meg=True)
 event_id=[1,4,8]
 tmin, tmax = -0.2, 0.8
 tmin, tmax = 0, 1
+sfreq = raw.info['sfreq']
 
-eav = Elekta_averager(raw.info['acq_pars'])
 events = mne.find_events(raw, stim_channel='STI101', consecutive=True)
+eav = Elekta_averager(raw.info['acq_pars'])
+
+evs, ev_id = eav.events_from_mne_triggers(events)
+
+sys.exit()
+
 
 """ Replace each trigger transition by the corresponding Elekta event(s) (if any). """
+eav = Elekta_averager(raw.info['acq_pars'])
+events = mne.find_events(raw, stim_channel='STI101', consecutive=True)
 events_ = events.copy()
 events_[:,2] = 0
 for n,ev in eav.events.iteritems():
@@ -44,19 +53,34 @@ for n,ev in eav.events.iteritems():
     if np.all(events_[ok_ind,2] == 0):
         events_[ok_ind,2] |= 1 << (ev.number - 1)  # switch on the bit corresponding to event number
 
+
 """ Replace Elekta events by 'category triggers', i.e. times where conditions for averaging a given
 category are fulfilled. This requires consideration of both ref. and req. events.  """
 cat_triggers = events.copy()
+times = events[:,0]
 for n,cat in eav.categories.iteritems():
-    refEvents_t = np.where(events_[:,2] & (1 << cat.event-1))
+    refEvents_inds = np.where(events_[:,2] & (1 << cat.event-1))  # indices of times where ref. event occurs
+    refEvents_t = times[refEvents_inds]
     if cat.reqevent:
-        reqEvents_t = np.where(events_[:,2] & (1 << cat.reqevent-1))
-    # TODO: check what reqwhen means (0/1 for before/after?) 
+        # indices where the req. events occur        
+        reqEvents_inds = np.where(events_[:,2] & (1 << cat.reqevent-1))
+        # relative (to refevent) time window (in samples) where req. event must occur (e.g. [0 200])
+        win = np.round(np.array(sorted([0, (-1)**(0-cat.reqwhen)*cat.reqwithin]))*sfreq)
+        # time window for each ref. event
+        refEvents_wins = refEvents_t[:,None] + win[None,t]
+"""        for t in refEvents_wins:
+
+
+        reqEvent_ok = np.logical_and(
+        
+        -lines where single given req. event time x is in the window:
+        np.logical_and(x >= refEvents_wins[:,0], x <= refEvents_wins[:,1])
+
     #for t in refEvents_t:
     #    if t-cat.reqwhen
         
     #cat_triggers[refEvents_t,2] = 1
-    
+   """ 
     
     
 
