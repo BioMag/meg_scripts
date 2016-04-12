@@ -130,8 +130,10 @@ if __name__ == '__main__':
     parser.add_argument('--nharm', type=int, default=default_nharm, choices=[0,1,2,3,4], help='Number of line frequency harmonics to include')
     parser.add_argument('--epoch_start', type=float, default=None, help='Epoch start relative to trigger (s)')
     parser.add_argument('--epoch_end', type=float, default=None, help='Epoch end relative to trigger (s)')
-    parser.add_argument('--stim_channel', type=str, default=default_stim_channel, help='Stim channel')
+    parser.add_argument('--stim_channel', type=str, default=default_stim_channel, help='Stim (trigger) channel')
     parser.add_argument('--plot_snr', type=bool, default=False, help='Whether to plot epochs-based SNR or not')    
+    parser.add_argument('--sti_mask', type=int, default=0, help='Mask to apply to the stim channel')    
+
     args = parser.parse_args()
    
     fnbase = os.path.basename(os.path.splitext(args.snr_file)[0])
@@ -142,7 +144,7 @@ if __name__ == '__main__':
         warnings.simplefilter('ignore')
         raw_chpi = mne.io.Raw(args.snr_file, allow_maxshield=True, verbose=verbose)
 
-    triggers = mne.find_events(raw_chpi, stim_channel=default_stim_channel, consecutive=True, verbose=verbose)
+    triggers = mne.find_events(raw_chpi, stim_channel=default_stim_channel, consecutive=True, verbose=verbose, mask=args.sti_mask)
     picks = mne.pick_types(raw_chpi.info, meg=True)
     
     """ If using a separate file for the actual data epochs, load it. """
@@ -151,10 +153,9 @@ if __name__ == '__main__':
     
     """ Get averaging parameters. These should be identical for the SNR and epochs files. """
     eav = Elekta_averager(raw_chpi.info['acq_pars'])
-    triggers = mne.find_events(raw_chpi, stim_channel=default_stim_channel, consecutive=True, verbose=verbose)
     events, event_ids = eav.events_from_mne_triggers(triggers)
     if args.epochs_file:
-        triggers_epochs = mne.find_events(raw_epochs, stim_channel=default_stim_channel, consecutive=True, verbose=verbose)
+        triggers_epochs = mne.find_events(raw_epochs, stim_channel=default_stim_channel, consecutive=True, verbose=verbose, mask=args.sti_mask)
         if not np.all(triggers_epochs == triggers):
             raise Exception('Epochs file has different triggers from cHPI file.')
 
@@ -169,7 +170,7 @@ if __name__ == '__main__':
         else:
             epoch_start = eav.categories[catname].start
             epoch_end = eav.categories[catname].end
-        chpi_epochs = mne.Epochs(raw_chpi, events, id, tmin=epoch_start, tmax=epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
+        chpi_epochs = mne.Epochs(raw_chpi, events, {catname: id}, tmin=epoch_start, tmax=epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
         print('Computing SNR...')        
         w_snr = chpi_snr_epochs(chpi_epochs, n_lineharm=args.nharm, channels='grad', hpi_coil='median')
         if args.plot_snr:
@@ -182,14 +183,16 @@ if __name__ == '__main__':
             data_epochs = chpi_epochs
         else:
             print('Loading epochs for averaging...')        
-            data_epochs = mne.Epochs(raw_epochs, events, id, tmin=epoch_start, tmax=epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
+            data_epochs = mne.Epochs(raw_epochs, events, {catname: id}, tmin=epoch_start, tmax=epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
         print('Computing weighted average...')
         # DEBUG: set unity weights
         #w_snr = np.ones(w_snr.shape)        
         # DEBUG: set zero weights
         #w_snr = np.zeros(w_snr.shape)        
         weigh_epochs(data_epochs, w_snr)
-        evokeds.append(data_epochs.average())
+        evoked = data_epochs.average()
+        evoked.comment = catname   # average() should do this but doesn't
+        evokeds.append(evoked)
 
     if args.plot_snr:
         plt.show()
