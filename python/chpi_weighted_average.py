@@ -136,21 +136,26 @@ if __name__ == '__main__':
     fnbase = os.path.basename(os.path.splitext(args.snr_file)[0])
     verbose = False
     
-    # the cHPI SNR file is typically not maxfiltered, so ignore MaxShield warnings
+    """ Load cHPI SNR file. It is typically not maxfiltered, so ignore MaxShield warnings. """
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')        
         raw_chpi = mne.io.Raw(args.snr_file, allow_maxshield=True, verbose=verbose)
+    triggers = mne.find_events(raw_chpi, stim_channel='STI101', consecutive=True, verbose=verbose)
     picks = mne.pick_types(raw_chpi.info, meg=True)
+    
+    """ If using a separate file for the actual data epochs, load it. """
     if args.epochs_file:
         raw_epochs = mne.io.Raw(args.snr_file, allow_maxshield=True, verbose=verbose)
-        eav = Elekta_averager(raw_epochs.info['acq_pars'])
-    else:
-        eav = Elekta_averager(raw_chpi.info['acq_pars'])
+    
+    """ Get averaging parameters. These should be identical for the SNR and epochs files. """
+    eav = Elekta_averager(raw_chpi.info['acq_pars'])
+    triggers = mne.find_events(raw_chpi, stim_channel='STI101', consecutive=True, verbose=verbose)
+    events, event_ids = eav.events_from_mne_triggers(triggers)
+    if args.epochs_file:
+        triggers_epochs = mne.find_events(raw_epochs, stim_channel='STI101', consecutive=True, verbose=verbose)
+        assert(triggers_epochs == triggers)
 
-    events = mne.find_events(raw_chpi, stim_channel='STI101', verbose=verbose)
-    #event_ids = np.unique(events[:,2])  # pick all categories
-    event_ids = Elekta_averager.simple_event_id_dict()
-
+    """ For each category, compute the SNR weights and the weighted average. """
     evokeds = [] 
     for catname, id in event_ids.iteritems():
         print('\nProcessing event', id, ':', catname)
@@ -165,11 +170,12 @@ if __name__ == '__main__':
             data_epochs = mne.Epochs(raw_epochs, events, id, tmin=args.epoch_start, tmax=args.epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
         print('Computing weighted average...')
         # DEBUG: unity weights
-        w_snr = np.ones(w_snr.shape)        
+        #w_snr = np.ones(w_snr.shape)        
         #
         weigh_epochs(data_epochs, w_snr)
         evokeds.append(data_epochs.average())
 
+    """ Write all resulting evoked objects to a fiff file. """
     fn = fnbase + '_chpi_weighted-ave.fif'
     print('Saving', fn)
     mne.write_evokeds(fn, evokeds)
