@@ -121,7 +121,6 @@ if __name__ == '__main__':
     
     """ Default parameters """
     default_nharm = 2  # number of line harmonics to include
-    default_epoch_start, default_epoch_end = -.2, .8  # start/end of cHPI epochs, relative to stimulus trigger
     default_stim_channel = 'STI101'    
     
     """ Parse command line """
@@ -129,8 +128,8 @@ if __name__ == '__main__':
     parser.add_argument('snr_file', help='Name of raw fiff file. cHPI SNR will be computed from this file. Epochs for averaging will also be taken from this file, unless --epochs_file is specified.')
     parser.add_argument('--epochs_file', type=str, default=None, help='Raw fiff file to use for averaging epochs. It must have the same epochs/categories as snr_file.')
     parser.add_argument('--nharm', type=int, default=default_nharm, choices=[0,1,2,3,4], help='Number of line frequency harmonics to include')
-    parser.add_argument('--epoch_start', type=float, default=default_epoch_start, help='Epoch start relative to trigger (s)')
-    parser.add_argument('--epoch_end', type=float, default=default_epoch_end, help='Epoch end relative to trigger (s)')
+    parser.add_argument('--epoch_start', type=float, default=None, help='Epoch start relative to trigger (s)')
+    parser.add_argument('--epoch_end', type=float, default=None, help='Epoch end relative to trigger (s)')
     parser.add_argument('--stim_channel', type=str, default=default_stim_channel, help='Stim channel')
     parser.add_argument('--plot_snr', type=bool, default=False, help='Whether to plot epochs-based SNR or not')    
     args = parser.parse_args()
@@ -163,8 +162,14 @@ if __name__ == '__main__':
     evokeds = [] 
     for catname, id in event_ids.iteritems():
         print('\nProcessing category', id, ':', catname)
-        print('Loading epochs for cHPI SNR...')        
-        chpi_epochs = mne.Epochs(raw_chpi, events, id, tmin=args.epoch_start, tmax=args.epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
+        print('Loading epochs for cHPI SNR...')
+        if args.epoch_start:
+            epoch_start = args.epoch_start
+            epoch_end = args.epoch_end
+        else:
+            epoch_start = eav.categories[catname].start
+            epoch_end = eav.categories[catname].end
+        chpi_epochs = mne.Epochs(raw_chpi, events, id, tmin=epoch_start, tmax=epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
         print('Computing SNR...')        
         w_snr = chpi_snr_epochs(chpi_epochs, n_lineharm=args.nharm, channels='grad', hpi_coil='median')
         if args.plot_snr:
@@ -177,7 +182,7 @@ if __name__ == '__main__':
             data_epochs = chpi_epochs
         else:
             print('Loading epochs for averaging...')        
-            data_epochs = mne.Epochs(raw_epochs, events, id, tmin=args.epoch_start, tmax=args.epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
+            data_epochs = mne.Epochs(raw_epochs, events, id, tmin=epoch_start, tmax=epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
         print('Computing weighted average...')
         # DEBUG: set unity weights
         #w_snr = np.ones(w_snr.shape)        
