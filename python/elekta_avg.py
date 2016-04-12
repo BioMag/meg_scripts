@@ -148,7 +148,6 @@ class Elekta_averager(object):
                 if np.all(events_[ok_ind,2] == 0):
                     # this can be used for bitwise coding of multiple events
                     #events_[ok_ind,2] |= 1 << (ev.number - 1)  # switch on the bit corresponding to event number
-                    print('event',n)
                     events_[ok_ind,2] = n
                 else:
                     raise Exception('Multiple dacq events match trigger transition')

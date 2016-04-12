@@ -125,7 +125,7 @@ tmin, tmax = -0.2, 0.8
 tmin, tmax = 0, 1
 chpi_epochs = mne.Epochs(raw, events, event_id, tmin, tmax, baseline=(None, 0), picks=picks, preload=True)
 
-
+c
 
 snr_grad, snr_mag = chpi_snr_epochs(chpi_epochs)
 
