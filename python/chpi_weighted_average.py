@@ -2,17 +2,6 @@
 """
 Weighted averaging of epochs according to continuous HPI (cHPI) signal-to-noise.
 
-TODO:
-
-
-testcases:
-set weights to 1, verify avg
-set weights to 0, verify avg
-plot weights as func of time, cmp w/ raw data snr script
-
-more verbose reporting
-get category names for averaging
-bad channels?
 
 @author: jussi
 """
@@ -135,8 +124,11 @@ if __name__ == '__main__':
     parser.add_argument('--sti_mask', type=int, default=0, help='Mask to apply to the stim channel')    
 
     args = parser.parse_args()
-   
-    fnbase = os.path.basename(os.path.splitext(args.snr_file)[0])
+
+    if args.epochs_file:
+        fnbase = os.path.basename(os.path.splitext(args.epochs_file)[0])
+    else:
+        fnbase = os.path.basename(os.path.splitext(args.snr_file)[0])
     verbose = False
     
     """ Load cHPI SNR file. It is typically not maxfiltered, so ignore MaxShield warnings. """
@@ -157,7 +149,7 @@ if __name__ == '__main__':
     if args.epochs_file:
         triggers_epochs = mne.find_events(raw_epochs, stim_channel=default_stim_channel, consecutive=True, verbose=verbose, mask=args.sti_mask)
         if not np.all(triggers_epochs == triggers):
-            raise Exception('Epochs file has different triggers from cHPI file.')
+            raise Exception('Epochs file has triggers different from cHPI file.')
 
     """ For each category, compute the SNR weights and the weighted average. """
     evokeds = [] 
@@ -185,10 +177,6 @@ if __name__ == '__main__':
             print('Loading epochs for averaging...')        
             data_epochs = mne.Epochs(raw_epochs, events, {catname: id}, tmin=epoch_start, tmax=epoch_end, baseline=None, picks=picks, preload=True, verbose=verbose)
         print('Computing weighted average...')
-        # DEBUG: set unity weights
-        #w_snr = np.ones(w_snr.shape)        
-        # DEBUG: set zero weights
-        #w_snr = np.zeros(w_snr.shape)        
         weigh_epochs(data_epochs, w_snr)
         evoked = data_epochs.average()
         evoked.comment = catname   # average() should do this but doesn't
