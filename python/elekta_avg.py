@@ -25,9 +25,10 @@ class Elekta_event(object):
         self.oldbits = int(oldbits)  # state before trigger transition
         self.newmask = int(newmask)  # bitmask for post-transition state. 0-bits = ignore
         self.oldmask = int(oldmask)  # bitmask for pre-transition state
-        self.delay = float(delay)  # delay to stimulus (ms)
-        self.comment = comment  # verbose comment
-        self.in_use = False  # whether event is referred to by a category
+        self.delay = float(delay)  # delay to stimulus (s)
+        self.comment = comment  # verbose comment for the event
+        # non-dacq vars
+        self.in_use = False  # whether event is in use, i.e. referred to by a category
 
     def __repr__(self):
         return '<Elekta_event | name: {} comment: {} new bits: {} old bits: {} new mask: {} old mask: {} delay: {}>'.format(
@@ -52,7 +53,7 @@ class Elekta_category(object):
         self.reqevent = int(reqevent)  # additional required event (index to event list)
         self.reqwhen = int(reqwhen)  # 1=before, 0=after ref. event
         self.reqwithin = float(reqwithin)  # time window before or after ref. event (s)
-        self.subave = True if subave==u'1' else False  # do subaveraging or not
+        self.subave = int(subave)  # subaverage size
         # non-dacq vars
         self.times = None  # list of t=0 times (in samples) for corresponding epochs
     
@@ -66,9 +67,10 @@ class Elekta_averager(object):
     trigger events and categories. 
     """
 
-    # averager related variable names in dacq parameters
+    # these are DACQ averager related variable names without preceding 'ERF'
     vars = ['magMax', 'magMin', 'magNoise', 'magSlope', 'magSpike', 'megMax', 'megMin', 'megNoise',
-            'megSlope', 'megSpike', 'ncateg', 'nevent', 'stimSource', 'triggerMap', 'update', 'version',
+            'megSlope', 'megSpike', 'eegMax', 'eegMin', 'eegNoise', 'eegSlope', 'eegSpike', 'eogMax',
+            'ecgMax', 'ncateg', 'nevent', 'stimSource', 'triggerMap', 'update', 'version',
             'artefIgnore', 'averUpdate']    
 
     acq_var_magic = ['ERF', 'DEF', 'ACQ', 'TCP']  # dacq variable names start with one of these
@@ -80,19 +82,24 @@ class Elekta_averager(object):
         # sets instance variables (lowercase versions of dacq variable names), to avoid a lot of boilerplate code
         for var in Elekta_averager.vars:
             val = self.acq_dict['ERF'+var]
-            if var[:3] in ['mag','meg']:
+            if var[:3] in ['mag','meg','eeg','eog','ecg']:  # rejection criteria are floats
                 val = float(val)
             elif var in ['ncateg','nevent']:
                 val = int(val)
             setattr(self, var.lower(), val)
+        self.stimsource = u'Internal' if self.stimsource == u'1' else u'External'
+        # collect events and categories as instance dicts
         self.events = self._events_from_acq_pars()
         self.categories = self._categories_from_acq_pars()
+        # tag the events that are actually in use
         for cat in self.categories.values():
             if cat.event:
                 self.events[cat.event].in_use = True
+            if cat.reqevent:
+                self.events[cat.reqevent].in_use = True
 
     def __repr__(self):
-        return '<Elekta_averager | Version: {} Categories: {} Events: {} StimSource: {}>'.format(
+        return '<Elekta_averager | Version: {} Categories: {} Events: {} Stim source: {}>'.format(
         self.version, self.ncateg, self.nevent, self.stimsource)
 
     @staticmethod
@@ -103,7 +110,7 @@ class Elekta_averager(object):
                 key = line
                 val = ''
             else:
-                val += ' ' + line if val else line  # dacq splits items with spaces into multiple lines
+                val += ' ' + line if val else line  # DACQ splits items with spaces into multiple lines
             yield key, val
 
     @staticmethod
@@ -113,6 +120,7 @@ class Elekta_averager(object):
         return dict(Elekta_averager._acqpars_gen(acq_pars))
 
     def _events_from_acq_pars(self):
+        """ Collects DACQ defined events into a dict. """
         events = {}
         for evnum in [str(x).zfill(2) for x in range(1,self.ncateg+1)]:  # '01', '02', etc.
             evdi = {}
@@ -124,6 +132,7 @@ class Elekta_averager(object):
         return events
 
     def _categories_from_acq_pars(self, all_categories=False):
+        """ Collects DACQ averaging categories into a dict. """
         cats = {}
         for catnum in [str(x).zfill(2) for x in range(1,self.nevent+1)]:  # '01', '02', etc.
             catdi = {}
@@ -139,7 +148,8 @@ class Elekta_averager(object):
         """ Creates list of dacq events based on mne trigger transitions list.
         mne_events is typically given by mne.find_events (use consecutive=True
         to get all transitions). Output consists of rows in the form [t, 0, event_code]
-        where t is time in samples. """
+        where t is time in samples and event_code is all events compatible with the transition
+        bitwise anded together. """
         events_ = mne_events.copy()
         events_[:,1] = 0
         events_[:,2] = 0
@@ -149,14 +159,14 @@ class Elekta_averager(object):
                 post_ok = np.bitwise_and(ev.newbits, mne_events[:,2]) == ev.newbits
                 ok_ind = np.where(pre_ok & post_ok)
                 if np.all(events_[ok_ind,2] == 0):
-                    # this can be used for bitwise coding of multiple events
-                    #events_[ok_ind,2] |= 1 << (ev.number - 1)  # switch on the bit corresponding to event number
-                    events_[ok_ind,2] = n
+                    events_[ok_ind,2] |= 1 << (ev.number - 1)  # switch on the bit corresponding to event number
                 else:
                     raise Exception('Multiple dacq events match trigger transition')
         return events_
 
     def _mne_events_to_category_times(self, cat, mne_events, sfreq):
+        """ Translate mne events to times when epochs for a given category should
+        be collected. """
         events = self._mne_events_to_dacq(mne_events)
         times = events[:,0]
         refEvents_inds = np.where(events[:,2] & (1 << cat.event-1))[0]  # indices of times where ref. event occurs
@@ -181,8 +191,13 @@ class Elekta_averager(object):
         catEvents_t += np.round(self.events[cat.event].delay * sfreq)
         return catEvents_t
 
+    def get_mne_rejection_dict(self):
+        """ Makes a mne rejection dict based on the averager parameters. Result
+        can be used e.g. with mne.Epochs """
+        return {'grad':self.megmax, 'mag':self.magmax, 'eeg':self.eegmax,
+                'eog':self.eogmax, 'ecg':self.ecgmax}
 
-    def get_epochs(self, raw, catname, picks, stim_channel=None, mask=0):
+    def get_epochs(self, raw, catname, picks=None, reject=None, stim_channel=None, mask=0):
         """ Get mne.Epochs instance corresponding to the given category. """
         cat = self.categories[catname]
         mne_events = mne.find_events(raw, stim_channel=stim_channel, mask=mask, consecutive=True)
@@ -190,10 +205,9 @@ class Elekta_averager(object):
         cat_t = self._mne_events_to_category_times(cat, mne_events, sfreq)
         catev = np.c_[cat_t, np.zeros(cat_t.shape), np. ones(cat_t.shape)].astype(np.uint32)
         id = {cat.comment: 1}
-        return mne.Epochs(raw, catev, event_id=id, tmin=cat.start, tmax=cat.end, baseline=None,
-                                 picks=picks, preload=True)
-        
-        
+        return mne.Epochs(raw, catev, event_id=id, reject=reject, tmin=cat.start, tmax=cat.end, baseline=None,
+                          picks=picks, preload=True)
+
     def _event_id_dict(self):
         """ Returns a simple event id dict that can be used with mne.find_events.
         Keys are category comments and values are the corresponding ref. event numbers. """
