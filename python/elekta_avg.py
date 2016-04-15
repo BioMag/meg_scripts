@@ -9,6 +9,7 @@ Elekta TRIUX/Vectorview systems.
 """
 
 import numpy as np
+import mne
 
 
 class Elekta_event(object):
@@ -52,9 +53,11 @@ class Elekta_category(object):
         self.reqwhen = int(reqwhen)  # 1=before, 0=after ref. event
         self.reqwithin = float(reqwithin)  # time window before or after ref. event (s)
         self.subave = True if subave==u'1' else False  # do subaveraging or not
+        # non-dacq vars
+        self.times = None  # list of t=0 times (in samples) for corresponding epochs
     
     def __repr__(self):
-        return '<Elekta_category | comment: {} event: {} reqevent: {} reqwhen: {} reqwithin: {} start: {} end: {}>'.format(
+        return '<Elekta_category | comment: \'{}\' event: {} reqevent: {} reqwhen: {} reqwithin: {} start: {} end: {}>'.format(
         self.comment, self.event, self.reqevent, self.reqwhen, self.reqwithin, self.start, self.end)
     
 
@@ -132,7 +135,7 @@ class Elekta_averager(object):
                 cats[catdi['comment']] = Elekta_category(**catdi)
         return cats
         
-    def events_from_mne_triggers(self, mne_events):
+    def _mne_events_to_dacq(self, mne_events):
         """ Creates list of dacq events based on mne trigger transitions list.
         mne_events is typically given by mne.find_events (use consecutive=True
         to get all transitions). Output consists of rows in the form [t, 0, event_code]
@@ -151,9 +154,45 @@ class Elekta_averager(object):
                     events_[ok_ind,2] = n
                 else:
                     raise Exception('Multiple dacq events match trigger transition')
-        return events_, self._event_id_dict()
+        return events_
+
+    def _mne_events_to_category_times(self, cat, mne_events, sfreq):
+        events = self._mne_events_to_dacq(mne_events)
+        times = events[:,0]
+        refEvents_inds = np.where(events[:,2] & (1 << cat.event-1))[0]  # indices of times where ref. event occurs
+        refEvents_t = times[refEvents_inds]
+        catEvents_inds = refEvents_inds
+        catEvents_t = times[catEvents_inds]
+        if cat.reqevent:
+            reqEvents_inds = np.where(events[:,2] & (1 << cat.reqevent-1))[0]  # indices of times where req. event occurs
+            reqEvents_t = times[reqEvents_inds]
+            # relative (to refevent) time window (in samples) where req. event must occur (e.g. [0 200])
+            win = np.round(np.array(sorted([0, (-1)**(cat.reqwhen)*cat.reqwithin]))*sfreq)
+            refEvents_wins = refEvents_t[:,None] + win
+            req_acc = np.zeros(refEvents_inds.shape, dtype=bool)
+            for t in reqEvents_t:
+                # true for windows which have the given reqEvent in them
+                reqEvent_in_win = np.logical_and(t >= refEvents_wins[:,0], t <= refEvents_wins[:,1])
+                req_acc |= reqEvent_in_win
+            # leave only ref. events where req. event condition is satisfied
+            catEvents_inds = catEvents_inds[np.where(req_acc)]
+            catEvents_t = times[catEvents_inds]            
+        # adjust for trigger-stimulus delay by delaying the ref. event
+        catEvents_t += np.round(self.events[cat.event].delay * sfreq)
+        return catEvents_t
+
+
+    def get_epochs(self, raw, catname, picks, stim_channel=None, mask=0):
+        """ Get mne.Epochs instance corresponding to the given category. """
+        cat = self.categories[catname]
+        mne_events = mne.find_events(raw, stim_channel=stim_channel, mask=mask, consecutive=True)
+        sfreq = raw.info['sfreq']
+        cat_t = self._mne_events_to_category_times(cat, mne_events, sfreq)
+        catev = np.c_[cat_t, np.zeros(cat_t.shape), np. ones(cat_t.shape)].astype(np.uint32)
+        id = {cat.comment: 1}
+        return mne.Epochs(raw, catev, event_id=id, tmin=cat.start, tmax=cat.end, baseline=None,
+                                 picks=picks, preload=True)
         
-    #def collect_epochs
         
     def _event_id_dict(self):
         """ Returns a simple event id dict that can be used with mne.find_events.
