@@ -13,7 +13,7 @@ import mne
 
 
 class Elekta_event(object):
-    """ Represents trigger event in Elekta/Neuromag system.  """
+    """ Represents a trigger event in Elekta/Neuromag system.  """
     
     # original dacq variable names
     vars = ['Name', 'Channel', 'NewBits', 'OldBits', 'NewMask', 'OldMask', 'Delay', 'Comment']
@@ -36,7 +36,7 @@ class Elekta_event(object):
 
 
 class Elekta_category(object):
-    """ Represents averaging category in Elekta/Neuromag system. """
+    """ Represents an averaging category in Elekta/Neuromag system. """
 
     # original dacq variable names    
     vars =  ['Comment', 'Display', 'Start', 'State', 'End', 'Event', 'Nave', 'ReqEvent', 
@@ -51,6 +51,7 @@ class Elekta_category(object):
         self.nave = int(nave)  # desired n of averages
         self.event = int(event)  # the reference event (index to event list)
         self.reqevent = int(reqevent)  # additional required event (index to event list)
+        # TODO: check reqwhen        
         self.reqwhen = int(reqwhen)  # 1=before, 0=after ref. event
         self.reqwithin = float(reqwithin)  # time window before or after ref. event (s)
         self.subave = int(subave)  # subaverage size
@@ -76,7 +77,7 @@ class Elekta_averager(object):
     acq_var_magic = ['ERF', 'DEF', 'ACQ', 'TCP']  # dacq variable names start with one of these
 
     def __init__(self, acq_pars):
-        """ acq_pars usually is obtained as Data.info['acq_pars'], where Data can be 
+        """ acq_pars usually is obtained as data.info['acq_pars'], where data can be 
         instance of Raw, Epochs or Evoked. """
         self.acq_dict = Elekta_averager._acqpars_dict(acq_pars)
         # sets instance variables (lowercase versions of dacq variable names), to avoid a lot of boilerplate code
@@ -87,11 +88,13 @@ class Elekta_averager(object):
             elif var in ['ncateg','nevent']:
                 val = int(val)
             setattr(self, var.lower(), val)
+        # TODO: check
         self.stimsource = u'Internal' if self.stimsource == u'1' else u'External'
         # collect events and categories as instance dicts
         self.events = self._events_from_acq_pars()
         self.categories = self._categories_from_acq_pars()
         # tag the events that are actually in use
+       
         for cat in self.categories.values():
             if cat.event:
                 self.events[cat.event].in_use = True
@@ -161,6 +164,7 @@ class Elekta_averager(object):
                 if np.all(events_[ok_ind,2] == 0):
                     events_[ok_ind,2] |= 1 << (n - 1)  # switch on the bit corresponding to event number
                 else:
+                    # code can handle this, but not clear if it's intended to be possible
                     raise Exception('Multiple dacq events match trigger transition')
         return events_
 
@@ -171,8 +175,6 @@ class Elekta_averager(object):
         times = events[:,0]
         refEvents_inds = np.where(events[:,2] & (1 << cat.event-1))[0]  # indices of times where ref. event occurs
         refEvents_t = times[refEvents_inds]
-        catEvents_inds = refEvents_inds
-        catEvents_t = times[catEvents_inds]
         if cat.reqevent:
             reqEvents_inds = np.where(events[:,2] & (1 << cat.reqevent-1))[0]  # indices of times where req. event occurs
             reqEvents_t = times[reqEvents_inds]
@@ -181,15 +183,15 @@ class Elekta_averager(object):
             refEvents_wins = refEvents_t[:,None] + win
             req_acc = np.zeros(refEvents_inds.shape, dtype=bool)
             for t in reqEvents_t:
-                # true for windows which have the given reqEvent in them
+                # mark time windows where req. condition is satisfied
                 reqEvent_in_win = np.logical_and(t >= refEvents_wins[:,0], t <= refEvents_wins[:,1])
-                req_acc |= reqEvent_in_win
-            # leave only ref. events where req. event condition is satisfied
-            catEvents_inds = catEvents_inds[np.where(req_acc)]
-            catEvents_t = times[catEvents_inds]            
+                req_acc |= reqEvent_in_win  
+            # drop ref. events where req. event condition is not satisfied
+            refEvents_inds = refEvents_inds[np.where(req_acc)]
+            refEvents_t = times[refEvents_inds]            
         # adjust for trigger-stimulus delay by delaying the ref. event
-        catEvents_t += np.round(self.events[cat.event].delay * sfreq)
-        return catEvents_t
+        refEvents_t += np.round(self.events[cat.event].delay * sfreq)
+        return refEvents_t
 
     def get_mne_rejection_dict(self):
         """ Makes a mne rejection dict based on the averager parameters. Result
@@ -202,24 +204,12 @@ class Elekta_averager(object):
         cat = self.categories[catname]
         mne_events = mne.find_events(raw, stim_channel=stim_channel, mask=mask, consecutive=True)
         sfreq = raw.info['sfreq']
+        # create array of category averaging times (t0) and corresponding event_id for mne.Epochs
         cat_t = self._mne_events_to_category_times(cat, mne_events, sfreq)
-        catev = np.c_[cat_t, np.zeros(cat_t.shape), np. ones(cat_t.shape)].astype(np.uint32)
+        catev = np.c_[cat_t, np.zeros(cat_t.shape), np.ones(cat_t.shape)].astype(np.uint32)
         id = {cat.comment: 1}
         return mne.Epochs(raw, catev, event_id=id, reject=reject, tmin=cat.start, tmax=cat.end, baseline=None,
                           picks=picks, preload=True)
-
-    def _event_id_dict(self):
-        """ Returns a simple event id dict that can be used with mne.find_events.
-        Keys are category comments and values are the corresponding ref. event numbers. """
-        catdi = {}
-        for cat in self.categories.values():
-            if cat.state == 1:
-                catdi[cat.comment] = cat.event
-            if cat.reqevent:
-                raise ValueError('Req. events not supported yet')
-        return catdi
-        
-        
 
 
 
