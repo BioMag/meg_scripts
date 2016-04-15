@@ -9,13 +9,20 @@ Created on Fri Apr 15 15:09:10 2016
 Summary: Elekta/Neuromag DACQ (data acquisition) supports rather flexible event and 
 averaging logic that is currently not implemented in mne-python. It also stores all averaging 
 parameters in the fiff file, so raw data can be easily reaveraged in postprocessing.
-The purpose of this PR is 1) extract the relevant info from the fiff file 
+The purpose of this PR is 
+1) extract the relevant info from the fiff file 
 2) implement support for averaging according to Elekta categories.
 
 Implementation: an Elekta_averager class that takes all the relevant info from 
-raw.info['acq_pars']. Main API method is get_epochs() that gives mne.Epochs corresponding
-to a given DACQ category. (Not multiple categories per Epochs object, since different
-categories may have e.g. different epoch lengths, which is not supported by mne.Epochs.)
+raw.info['acq_pars']. 
+
+API methods:
+
+get_epochs() that gives mne.Epochs corresponding to a given DACQ category. 
+(Not multiple categories per Epochs object, since different categories may have e.g. different 
+epoch lengths, which is not supported by mne.Epochs.)
+
+rejection_dict() translates DACQ params to a reject dict that can be used with mne.Epochs
 
 Technical details: DACQ supports defining 32 different events which correspond to trigger 
 transitions. Events support pre- and post-transition bit masking separately. Several events
@@ -25,8 +32,6 @@ for collecting the corresponding epochs. Epoch length is defined by the start an
 (given relative to the reference event). A conditional ('required') event is also supported; 
 if defined, it must appear in the given time window before or after the stimulus for the epoch
  to be valid.
-
-
 
 Usage examples:
 
@@ -48,8 +53,9 @@ eav.categories
  u'aud low': <Elekta_category | comment: 'aud low' event: 1 reqevent: 0 reqwhen: 1 reqwithin: 0.0 start: -0.1 end: 0.6>}
 ...
 
-# get epochs
+# get epochs for one dacq category
 eps = eav.get_epochs(raw, 'aud high')
+
 
 
 

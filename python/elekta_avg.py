@@ -159,7 +159,7 @@ class Elekta_averager(object):
                 post_ok = np.bitwise_and(ev.newbits, mne_events[:,2]) == ev.newbits
                 ok_ind = np.where(pre_ok & post_ok)
                 if np.all(events_[ok_ind,2] == 0):
-                    events_[ok_ind,2] |= 1 << (ev.number - 1)  # switch on the bit corresponding to event number
+                    events_[ok_ind,2] |= 1 << (n - 1)  # switch on the bit corresponding to event number
                 else:
                     raise Exception('Multiple dacq events match trigger transition')
         return events_
