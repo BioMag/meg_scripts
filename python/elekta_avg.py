@@ -12,20 +12,20 @@ import numpy as np
 
 
 class Elekta_event(object):
-    """ Represents trigger event in Elekta system.  """
+    """ Represents trigger event in Elekta/Neuromag system.  """
     
     # original dacq variable names
     vars = ['Name', 'Channel', 'NewBits', 'OldBits', 'NewMask', 'OldMask', 'Delay', 'Comment']
     
     def __init__(self, name, channel, newbits, oldbits, newmask, oldmask, delay, comment):
-        self.name = name
-        self.channel = channel
-        self.newbits = int(newbits)
-        self.oldbits = int(oldbits)
-        self.newmask = int(newmask)
-        self.oldmask = int(oldmask)
-        self.delay = float(delay)
-        self.comment = comment
+        self.name = name  # short name for event
+        self.channel = channel  # stimulus channel
+        self.newbits = int(newbits)  # state after trigger transition
+        self.oldbits = int(oldbits)  # state before trigger transition
+        self.newmask = int(newmask)  # bitmask for post-transition state. 0-bits = ignore
+        self.oldmask = int(oldmask)  # bitmask for pre-transition state
+        self.delay = float(delay)  # delay to stimulus (ms)
+        self.comment = comment  # verbose comment
         self.in_use = False  # whether event is referred to by a category
 
     def __repr__(self):
@@ -34,7 +34,7 @@ class Elekta_event(object):
 
 
 class Elekta_category(object):
-    """ Represents averaging category in Elekta system. """
+    """ Represents averaging category in Elekta/Neuromag system. """
 
     # original dacq variable names    
     vars =  ['Comment', 'Display', 'Start', 'State', 'End', 'Event', 'Nave', 'ReqEvent', 
@@ -42,16 +42,16 @@ class Elekta_category(object):
 
     def __init__(self, comment, display, start, state, end, event, nave, reqevent, reqwhen, reqwithin, subave):
         self.comment = comment
-        self.display = True if display==u'1' else False
-        self.state = True if state==u'1' else False
-        self.start = float(start)
-        self.end = float(end)
-        self.nave = int(nave)
-        self.event = int(event)  # categories are referred to by numbers
-        self.reqevent = int(reqevent)
-        self.reqwhen = float(reqwhen)
-        self.reqwithin = float(reqwithin)
-        self.subave = True if subave==u'1' else False
+        self.display = True if display==u'1' else False  # whether do display online in dacq
+        self.state = True if state==u'1' else False  # enabled or not
+        self.start = float(start)  # epoch start
+        self.end = float(end)  # epoch end
+        self.nave = int(nave)  # desired n of averages
+        self.event = int(event)  # the reference event (index to event list)
+        self.reqevent = int(reqevent)  # additional required event (index to event list)
+        self.reqwhen = int(reqwhen)  # 1=before, 0=after ref. event
+        self.reqwithin = float(reqwithin)  # time window before or after ref. event (s)
+        self.subave = True if subave==u'1' else False  # do subaveraging or not
     
     def __repr__(self):
         return '<Elekta_category | comment: {} event: {} reqevent: {} reqwhen: {} reqwithin: {} start: {} end: {}>'.format(
@@ -152,6 +152,8 @@ class Elekta_averager(object):
                 else:
                     raise Exception('Multiple dacq events match trigger transition')
         return events_, self._event_id_dict()
+        
+    #def collect_epochs
         
     def _event_id_dict(self):
         """ Returns a simple event id dict that can be used with mne.find_events.

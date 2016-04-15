@@ -38,8 +38,6 @@ eav = Elekta_averager(raw.info['acq_pars'])
 
 evs, ev_id = eav.events_from_mne_triggers(events)
 
-sys.exit()
-
 
 """ Replace each trigger transition by the corresponding Elekta event(s) (if any). """
 eav = Elekta_averager(raw.info['acq_pars'])
@@ -51,16 +49,48 @@ for n,ev in eav.events.iteritems():
     post_ok = np.bitwise_and(ev.newbits, events[:,2]) == ev.newbits
     ok_ind = np.where(pre_ok & post_ok)
     if np.all(events_[ok_ind,2] == 0):
-        events_[ok_ind,2] |= 1 << (ev.number - 1)  # switch on the bit corresponding to event number
-
+        events_[ok_ind,2] |= 1 << (n - 1)  # switch on the bit corresponding to event number
+    """ Adjust for trigger-stimulus delay by delaying the event. """
+    events[ok_ind,0] += ev.delay
+        
 
 """ Replace Elekta events by 'category triggers', i.e. times where conditions for averaging a given
 category are fulfilled. This requires consideration of both ref. and req. events.  """
 cat_triggers = events.copy()
 times = events[:,0]
 for n,cat in eav.categories.iteritems():
-    refEvents_inds = np.where(events_[:,2] & (1 << cat.event-1))  # indices of times where ref. event occurs
+    refEvents_inds = np.where(events_[:,2] & (1 << cat.event-1))[0]  # indices of times where ref. event occurs
     refEvents_t = times[refEvents_inds]
+    if cat.reqevent:
+        reqEvents_inds = np.where(events_[:,2] & (1 << cat.reqevent-1))[0]  # indices of times where req. event occurs
+        reqEvents_t = times[reqEvents_inds]
+        # relative (to refevent) time window (in samples) where req. event must occur (e.g. [0 200])
+        win = np.round(np.array(sorted([0, (-1)**(0-cat.reqwhen)*cat.reqwithin]))*sfreq)
+        refEvents_wins = refEvents_t[:,None] + win
+        req_acc = np.zeros(refEvents_inds.shape, dtype=bool)
+        for t in reqEvents_t:
+            # true for windows which have the given reqEvent in them
+            reqEvent_in_win = np.logical_and(t >= refEvents_wins[:,0], t <= refEvents_wins[:,1])
+            req_acc |= reqEvent_in_win
+        # leave only ref. events where req. event condition is satisfied
+        refEvents_inds = refEvents_inds[np.where(req_acc)]
+        refEvents_t = times[refEvents_inds]            
+    # adjust for trigger-stimulus delay by delaying the ref. event
+    refEvents_t += eav.events[cat.event].delay
+    
+
+
+
+    
+    
+
+            
+            
+
+
+
+
+
     if cat.reqevent:
         # indices where the req. events occur        
         reqEvents_inds = np.where(events_[:,2] & (1 << cat.reqevent-1))
@@ -68,6 +98,9 @@ for n,cat in eav.categories.iteritems():
         win = np.round(np.array(sorted([0, (-1)**(0-cat.reqwhen)*cat.reqwithin]))*sfreq)
         # time window for each ref. event
         refEvents_wins = refEvents_t[:,None] + win[None,t]
+        req_in_window = np.zeros(refEvents_t.shape)
+        
+
 """        for t in refEvents_wins:
 
 
