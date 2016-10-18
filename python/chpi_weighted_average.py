@@ -189,8 +189,11 @@ if __name__ == '__main__':
         else:
             epoch_start = cond['tmin']
             epoch_end = cond['tmax']
-        reject = ap.reject if args.reject else None
-        flat = ap.flat if args.reject else None
+        if args.reject:
+            print('Warning: epoch rejection not implemented yet')
+            # reject = ap.reject if args.reject else None
+            # flat = ap.flat if args.reject else None
+            reject, flat = None, None
         chpi_epochs = mne.Epochs(raw_chpi, reject=reject, flat=flat, **cond)
         print('Computing SNR...')
         w_snr = chpi_snr_epochs(chpi_epochs, n_lineharm=args.nharm,
