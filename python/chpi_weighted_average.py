@@ -50,7 +50,7 @@ def chpi_snr_epochs(epochs, n_lineharm=2, channels='grad', hpi_coil='median'):
     cfreqs = list(chpi_freqs(epochs.info))
     # this cannot be used yet, see
     # https://github.com/mne-tools/mne-python/pull/3670
-    #(cfreqs, _, _, _, _) = _get_hpi_info(epochs.info)
+    # (cfreqs, _, _, _, _) = _get_hpi_info(epochs.info)
     ncoils = len(cfreqs)
     linefreq = epochs.info['line_freq']
     linefreqs = (np.arange(n_lineharm+1)+1) * linefreq
@@ -62,7 +62,8 @@ def chpi_snr_epochs(epochs, n_lineharm=2, channels='grad', hpi_coil='median'):
 
     # create linear model
     model = np.c_[t, np.ones(t.shape)]  # model slope and DC
-    for f in list(linefreqs)+list(cfreqs):  # add sine and cosine term for each freq
+    # add sine and cosine term for each freq
+    for f in list(linefreqs)+list(cfreqs):
         model = np.c_[model, np.cos(2*np.pi*f*t), np.sin(2*np.pi*f*t)]
     inv_model = np.linalg.pinv(model)
 
@@ -141,16 +142,14 @@ if __name__ == '__main__':
     parser.add_argument('snr_file', help=help_snr_file)
     parser.add_argument('--epochs_file', type=str, default=None,
                         help=help_epochs_file)
-    parser.add_argument('--reject', type=bool, default=False,
-                        help=help_reject)
+    parser.add_argument('--reject', help=help_reject, action='store_true')
     parser.add_argument('--nharm', type=int, default=default_nharm,
                         choices=[0, 1, 2, 3, 4], help=help_nharm)
     parser.add_argument('--epoch_start', type=float, default=None,
                         help=help_epoch_start)
     parser.add_argument('--epoch_end', type=float, default=None,
                         help=help_epoch_end)
-    parser.add_argument('--plot_snr', type=bool, default=False,
-                        help=help_plot_snr)
+    parser.add_argument('--plot_snr', help=help_plot_snr, action='store_true')
     parser.add_argument('--sti_mask', type=int, default=0,
                         help=help_sti_mask)
 
