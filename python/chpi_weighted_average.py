@@ -183,6 +183,9 @@ if __name__ == '__main__':
         print('\nProcessing category: %s' % cat['comment'])
         print('Loading epochs for cHPI SNR...')
         cond = ap.get_condition(raw_chpi, cat)
+        if len(cond['events']) == 0:  # if no events, go to next category
+            print('No events for category % s' % cat['comment'])
+            continue
         if args.epoch_start:
             epoch_start = args.epoch_start
             epoch_end = args.epoch_end
@@ -193,7 +196,7 @@ if __name__ == '__main__':
             print('Warning: epoch rejection not implemented yet')
             # reject = ap.reject if args.reject else None
             # flat = ap.flat if args.reject else None
-            reject, flat = None, None
+        reject, flat = None, None
         chpi_epochs = mne.Epochs(raw_chpi, reject=reject, flat=flat, **cond)
         print('Computing SNR...')
         w_snr = chpi_snr_epochs(chpi_epochs, n_lineharm=args.nharm,
@@ -218,6 +221,7 @@ if __name__ == '__main__':
         plt.show()
 
     """ Write all resulting evoked objects to a fiff file. """
-    fn = fnbase + '_chpi_weighted-ave.fif'
-    print('Saving', fn)
-    mne.write_evokeds(fn, evokeds)
+    if evokeds:
+        fn = fnbase + '_chpi_weighted-ave.fif'
+        print('Saving', fn)
+        mne.write_evokeds(fn, evokeds)
