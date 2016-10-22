@@ -155,6 +155,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    mne.set_log_level('ERROR')  # reduce mne output
+
     if args.epochs_file:
         fnbase = os.path.basename(os.path.splitext(args.epochs_file)[0])
     else:
@@ -192,35 +194,39 @@ if __name__ == '__main__':
         else:
             epoch_start = cond['tmin']
             epoch_end = cond['tmax']
-        if args.reject:
-            print('Warning: epoch rejection not implemented yet')
-            # TODO: set reject= and flat=, use drop_bad() on data epochs,
-            # get dropped
-            # indices by .drop_log and apply to chpi weights
-            # reject = ap.reject if args.reject else None
-            # flat = ap.flat if args.reject else None
-        reject, flat = None, None
-        chpi_epochs = mne.Epochs(raw_chpi, reject=reject, flat=flat, **cond)
+        reject = ap.reject if args.reject else None
+        flat = ap.flat if args.reject else None
+        # do not apply artifact rejection for the chpi epochs
+        chpi_epochs = mne.Epochs(raw_chpi, **cond)
         print('Computing SNR...')
         w_snr = chpi_snr_epochs(chpi_epochs, n_lineharm=args.nharm,
                                 channels='grad', hpi_coil='median')
         if not args.epochs_file:
-            data_epochs = chpi_epochs
+            data_epochs = mne.Epochs(raw_chpi, reject=reject, flat=flat,
+                                     **cond)
         else:
             print('Loading epochs for averaging...')
             data_epochs = mne.Epochs(raw_epochs, reject=reject, flat=flat,
                                      **cond)
+        # figure out which epochs got dropped, so we choose the weights
+        # correctly
+        data_epochs.load_data()
+        eps_ok = [i for i, k in enumerate(data_epochs.drop_log) if not k]
+        print('%d epochs ok' % len(eps_ok))
         print('Computing weighted average...')
-        weigh_epochs(data_epochs, w_snr)
+        print((data_epochs.drop_log))
+        print(eps_ok)
+        w_snr_ok = w_snr[eps_ok]
+        weigh_epochs(data_epochs, w_snr_ok)
         evoked = data_epochs.average()
         evoked.comment = cat['comment']
         evokeds.append(evoked)
 
     if args.plot_snr:
         plt.figure()
-        plt.plot(20*np.log10(w_snr))
-        plt.xlabel('Epoch n')
-        plt.ylabel('SNR (dB)')
+        plt.plot(eps_ok, 20*np.log10(w_snr_ok))
+        plt.xlabel('Epoch n (good epochs only)')
+        plt.ylabel('CHPI SNR (dB)')
         plt.show()
 
     """ Write all resulting evoked objects to a fiff file. """
