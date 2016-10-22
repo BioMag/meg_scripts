@@ -194,6 +194,9 @@ if __name__ == '__main__':
             epoch_end = cond['tmax']
         if args.reject:
             print('Warning: epoch rejection not implemented yet')
+            # TODO: set reject= and flat=, use drop_bad() on data epochs,
+            # get dropped
+            # indices by .drop_log and apply to chpi weights
             # reject = ap.reject if args.reject else None
             # flat = ap.flat if args.reject else None
         reject, flat = None, None
