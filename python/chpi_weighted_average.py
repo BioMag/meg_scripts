@@ -138,6 +138,7 @@ if __name__ == '__main__':
     help_epoch_start = 'Epoch start relative to trigger (s)'
     help_epoch_end = 'Epoch end relative to trigger (s)'
     help_plot_snr = 'Whether to plot SNR or not'
+    help_stim_channel = 'Which stimulus channel to scan for events'
     help_sti_mask = 'Mask to apply to the stim channel'
     parser.add_argument('snr_file', help=help_snr_file)
     parser.add_argument('--epochs_file', type=str, default=None,
@@ -150,7 +151,9 @@ if __name__ == '__main__':
     parser.add_argument('--epoch_end', type=float, default=None,
                         help=help_epoch_end)
     parser.add_argument('--plot_snr', help=help_plot_snr, action='store_true')
-    parser.add_argument('--sti_mask', type=int, default=0,
+    parser.add_argument('--stim_channel', help=help_stim_channel, type=str,
+                        default=None)
+    parser.add_argument('--stim_mask', type=int, default=None,
                         help=help_sti_mask)
 
     args = parser.parse_args()
@@ -180,11 +183,13 @@ if __name__ == '__main__':
 
     """ For each category, compute the SNR weights and the weighted
     average. """
+    figs = False
     evokeds = []
     for cat in ap.categories:
         print('\nProcessing category: %s' % cat['comment'])
         print('Loading epochs for cHPI SNR...')
-        cond = ap.get_condition(raw_chpi, cat)
+        cond = ap.get_condition(raw_chpi, cat, stim_channel=args.stim_channel,
+                                mask=args.stim_mask)
         if len(cond['events']) == 0:  # if no events, go to next category
             print('No events for category % s' % cat['comment'])
             continue
@@ -208,29 +213,38 @@ if __name__ == '__main__':
             print('Loading epochs for averaging...')
             data_epochs = mne.Epochs(raw_epochs, reject=reject, flat=flat,
                                      **cond)
-        # figure out which epochs got dropped, so we choose the weights
-        # correctly
         data_epochs.load_data()
-        eps_ok = [i for i, k in enumerate(data_epochs.drop_log) if not k]
-        print('%d epochs ok' % len(eps_ok))
+        # epochs that are ok, or dropped due to actual rejection criteria
+        drop_log = [l for l in data_epochs.drop_log if not l or l[0] not in ['NO_DATA', 'TOO_SHORT']]
+        # epochs that are ok, can be used to index snr epochs
+        eps_ok = [i for i, l in enumerate(drop_log) if not l]
+        n_ok = len(eps_ok)
+        n_dropped = len(drop_log) - n_ok
+        print('%d epochs ok, %d epochs rejected' % (n_ok, n_dropped))
+        if n_ok == 0:
+            print('Skipping category')
+            continue
         print('Computing weighted average...')
-        print((data_epochs.drop_log))
-        print(eps_ok)
         w_snr_ok = w_snr[eps_ok]
         weigh_epochs(data_epochs, w_snr_ok)
         evoked = data_epochs.average()
         evoked.comment = cat['comment']
         evokeds.append(evoked)
 
-    if args.plot_snr:
-        plt.figure()
-        plt.plot(eps_ok, 20*np.log10(w_snr_ok))
-        plt.xlabel('Epoch n (good epochs only)')
-        plt.ylabel('CHPI SNR (dB)')
-        plt.show()
+        if args.plot_snr and eps_ok:
+            plt.figure()
+            plt.plot(eps_ok, 20*np.log10(w_snr_ok))
+            plt.title('Per-epoch SNR for category: ' + cat['comment'])
+            plt.xlabel('Epoch n (good epochs only)')
+            plt.ylabel('CHPI SNR (dB)')
+            figs = True
 
     """ Write all resulting evoked objects to a fiff file. """
     if evokeds:
         fn = fnbase + '_chpi_weighted-ave.fif'
         print('Saving', fn)
         mne.write_evokeds(fn, evokeds)
+
+    if args.plot_snr and figs:
+        plt.show()
+
