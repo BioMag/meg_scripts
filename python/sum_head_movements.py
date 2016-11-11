@@ -4,8 +4,13 @@
 Estimate total movement and rotation from MaxFiltered data (needs to have
 movement compensation / head pos estimation done)
 
-Works by lowpass filtering position & angle data, differentiating and 
-summing to get total movement. Results are probably inaccurate.
+Works by differentiating position & angle data, taking magnitudes and
+summing to get total movement.
+
+Suppressing noise is tricky (lowpass filtering will just reduce amplitude of
+each movement). Thus no filtering is done.  Results are probably inaccurate due
+to noisy data.
+
 
 @author: jussi
 """
@@ -37,9 +42,9 @@ parser = argparse.ArgumentParser(description='Get head movement info from raw '
 parser.add_argument('fiff_file', help='Name of raw fiff file')
 
 parser.add_argument('--plot', help='Plot HPI data', action='store_true')
-parser.add_argument('--lpcorner', type=int, default=10,
-                    help='Lowpass corner frequency for filtering position '
-                         'and angle data')
+# parser.add_argument('--lpcorner', type=int, default=10,
+#                    help='Lowpass corner frequency for filtering position '
+#                         'and angle data')
 args = parser.parse_args()
 
 
@@ -96,12 +101,12 @@ for k in np.arange(nrot):
     Y[k, :] = -np.dot(R[k].T, T[k])
 
 # get rot. angle changes directly from quaternion data
-Rq = lowpass(Rq, raw.info['sfreq'], args.lpcorner, axis=0)
+# Rq = lowpass(Rq, raw.info['sfreq'], args.lpcorner, axis=0)
 dA = _angle_between_quats(Rq[1:, :], Rq[:-1, :]) / np.pi * 180
 
 # get pos. changes
-Yf = lowpass(Y, raw.info['sfreq'], args.lpcorner, axis=0)
-dY = np.diff(Yf, axis=0)
+# Yf = lowpass(Y, raw.info['sfreq'], args.lpcorner, axis=0)
+dY = np.diff(Y, axis=0)
 dYv = np.sqrt(np.sum(dY**2, axis=1))  # len of movement at each time point
 tlen = times_ok[-1] - times_ok[0]
 
