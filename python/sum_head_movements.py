@@ -14,7 +14,6 @@ import numpy as np
 import argparse
 from mne.transforms import quat_to_rot, rotation_angles, _angle_between_quats
 from scipy.signal import medfilt, filtfilt, butter
-from scipy.linalg import inv
 
 
 # lowpass filter
@@ -37,13 +36,13 @@ parser.add_argument('--plot', help='Plot HPI data', action='store_true')
 parser.add_argument('--lpcorner', type=int, default=10,
                     help='Lowpass corner frequency for filtering position '
                          'and angle data')
-
 args = parser.parse_args()
 
-print(args.plot)
 
 GOF_LIMIT = .98  # goodness of fit limit where chpi fit is still ok
 DS_FREQ = 100  # frequency to downsample to 
+MAX_TRANS = 10e-3  # maximum translation per time unit
+MAX_ROT = 5  # maximum rotation per time unit
 
 raw = mne.io.Raw(args.fiff_file)
 if 'CHPI001' not in raw.info['ch_names']:
@@ -70,46 +69,59 @@ times_ok = times_all[ind_ok]
 quats give device -> head transformation: y = Rx + T 
 where y is in head coords and x in device coords.
 to get pos of head origin in device coords: y=0 -> Rx = -T -> x = -R.T * T 
-(symmetric rot matrix)
+rotation of head coord system: y = Rx + T -> x = R.T * y -R.T * T
+-> rotation given by R.T
 result agrees with maxfilter (note that maxfilter plots coords of its sss
 expansion origin, not of the head origin!)
-rotation matrix R is negative of maxfilter (opposite rotations)
 """
 
-# rotation quaternions
+# rotation quaternions -> rot matrices
 Rq, _ = raw[picks_chpi_r, :]
 Rq = Rq[:, ind_ok].T
-
-# convert to rotations around x, y and z axes
 R = quat_to_rot(Rq)
+
+# translation vectors
+T, _ = raw[picks_chpi_t, :]
+T = T[:, ind_ok].T
+
+# head origin (see above)
 nrot = R.shape[0]
+Y = np.zeros((nrot, 3))
 A = np.zeros((nrot, 3))
 for k in np.arange(nrot):
-    A[k, :] = np.array(rotation_angles(R[k, :, :]))/np.pi * 180
+    Y[k, :] = -np.dot(R[k].T, T[k])
 
-# filter quaternion data and get difference angles directly
+# get rot. angle changes directly from quaternion data
 Rq = lowpass(Rq, raw.info['sfreq'], args.lpcorner, axis=0)
 dA = _angle_between_quats(Rq[1:, :], Rq[:-1, :]) / np.pi * 180
 
-# translation
-T, _ = raw[picks_chpi_t, :]
-T = T[:, ind_ok].T
-T = lowpass(T, raw.info['sfreq'], args.lpcorner, axis=0)
-dT = np.diff(T, axis=0)
-dTv = np.sqrt(np.sum(dT**2, axis=1))  # magnitude of movement at each time point
+# get pos. changes
+Yf = lowpass(Y, raw.info['sfreq'], args.lpcorner, axis=0)
+dY = np.diff(Yf, axis=0)
+dYv = np.sqrt(np.sum(dY**2, axis=1))  # len of movement at each time point
 tlen = times_ok[-1] - times_ok[0]
 
-dTtot = np.sum(dTv)
-dAtot = np.sum(dA)
-print('\nTotal head translation during recording: %.2f mm, average %.2f mm/s' % 
+trans_ok_ind = np.where(dYv < MAX_TRANS)[0]
+if len(trans_ok_ind) < len(dYv):
+    print('Warning: ignoring some translations from totals that are larger '
+          'than %g m' % MAX_TRANS)
+rot_ok_ind = np.where(dA < MAX_ROT)[0]
+if len(rot_ok_ind) < len(dA):
+    print('Warning: ignoring some rotations from totals that are larger '
+          'than %g deg' % MAX_ROT)
+
+dTtot = np.sum(dYv[trans_ok_ind])
+dAtot = np.sum(dA[rot_ok_ind])
+
+print('\nTotal head translation during recording: %.2f mm, average %.2f mm/s' %
       (dTtot*1e3, dTtot*1e3 / tlen))
-print('Total head rotation during recording: %.2f deg, average %.2f deg/s\n' % 
+print('Total head rotation during recording: %.2f deg, average %.2f deg/s\n' %
       (dAtot, dAtot / tlen))
 
 if args.plot:
     plt.figure()
     ax = plt.subplot(4, 1, 1)
-    ax.plot(times_ok[1:], 1e3*dTv)
+    ax.plot(times_ok[1:], 1e3*dYv)
     ax.set_title('Head translations (where GOF > %g)' % GOF_LIMIT)
     ax.set(ylabel='Translation (mm)')
 
@@ -121,7 +133,7 @@ if args.plot:
     ax = plt.subplot(4, 1, 3)
     ax.plot(times_ok, T*1e3)
     ax.set_title('Position of head coordinate origin (whole file)')
-    ax.legend(['x','y','z'])
+    ax.legend(['x', 'y', 'z'])
     ax.set(ylabel='Position (mm)')
 
     ax = plt.subplot(4, 1, 4)
@@ -129,8 +141,6 @@ if args.plot:
     ax.set_title('Goodness of fit (whole recording)')
     ax.set(ylabel='Translation (mm)', xlabel='Time (s)')
     ax.set_ylim([.8, 1.05])
-    
-    plt.tight_layout()
-   
-    plt.show()
 
+    plt.tight_layout()
+    plt.show()
