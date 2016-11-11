@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Created on Mon Oct 31 10:49:06 2016
+Estimate total movement and rotation from MaxFiltered data (needs to have
+movement compensation / head pos estimation done)
+
+Works by lowpass filtering position & angle data, differentiating and 
+summing to get total movement. Results are probably inaccurate.
 
 @author: jussi
 """
@@ -20,7 +24,7 @@ from scipy.signal import medfilt, filtfilt, butter
 def lowpass(y, sfrate, corner, axis=-1):
     """ lowpass filter given data """
     ord = 5
-    if corner is None:
+    if not corner:
         return y
     cornern = 2 * corner / sfrate
     b, a = butter(ord, cornern)
@@ -103,12 +107,12 @@ tlen = times_ok[-1] - times_ok[0]
 
 trans_ok_ind = np.where(dYv < MAX_TRANS)[0]
 if len(trans_ok_ind) < len(dYv):
-    print('Warning: ignoring some translations from totals that are larger '
-          'than %g m' % MAX_TRANS)
+    print('Warning: ignoring %d translation steps that are larger '
+          'than %g m' % (len(dYv) - len(trans_ok_ind), MAX_TRANS))
 rot_ok_ind = np.where(dA < MAX_ROT)[0]
 if len(rot_ok_ind) < len(dA):
-    print('Warning: ignoring some rotations from totals that are larger '
-          'than %g deg' % MAX_ROT)
+    print('Warning: ignoring %d rotation steps that are larger '
+          'than %g deg' % (len(dA) - len(rot_ok_ind), MAX_ROT))
 
 dTtot = np.sum(dYv[trans_ok_ind])
 dAtot = np.sum(dA[rot_ok_ind])
