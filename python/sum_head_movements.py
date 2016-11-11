@@ -96,12 +96,12 @@ for k in np.arange(nrot):
     Y[k, :] = -np.dot(R[k].T, T[k])
 
 # get rot. angle changes directly from quaternion data
-Rq = lowpass(Rq, raw.info['sfreq'], args.lpcorner, axis=0)
+#Rq = lowpass(Rq, raw.info['sfreq'], args.lpcorner, axis=0)
 dA = _angle_between_quats(Rq[1:, :], Rq[:-1, :]) / np.pi * 180
 
 # get pos. changes
-Yf = lowpass(Y, raw.info['sfreq'], args.lpcorner, axis=0)
-dY = np.diff(Yf, axis=0)
+#Yf = lowpass(Y, raw.info['sfreq'], args.lpcorner, axis=0)
+dY = np.diff(Y, axis=0)
 dYv = np.sqrt(np.sum(dY**2, axis=1))  # len of movement at each time point
 tlen = times_ok[-1] - times_ok[0]
 
