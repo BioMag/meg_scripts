@@ -233,10 +233,10 @@ if __name__ == '__main__':
 
         if args.plot_snr and eps_ok:
             plt.figure()
-            plt.plot(eps_ok, 20*np.log10(w_snr_ok))
+            plt.plot(eps_ok, w_snr_ok)
             plt.title('Per-epoch SNR for category: ' + cat['comment'])
             plt.xlabel('Epoch n (good epochs only)')
-            plt.ylabel('CHPI SNR (dB)')
+            plt.ylabel('Epoch weight (unnormalized)')
             figs = True
 
     """ Write all resulting evoked objects to a fiff file. """
