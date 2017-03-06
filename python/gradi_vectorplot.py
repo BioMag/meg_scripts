@@ -40,6 +40,11 @@ evokeds_mag = []
 # parameters
 BUTTORD = 5  # order of Butterworth IIR lowpass filter
 
+# get magnetometer layout for platting, replace magnetometer names as above
+laym = mne.channels.read_layout('Vectorview-mag')
+for i, nm in enumerate(laym.names):
+    laym.names[i] = nm[:-1]+'x'
+
 for evoked in evokeds:
     # filter and replace data in-place
 
@@ -70,11 +75,6 @@ for evoked in evokeds:
     for i, ch in enumerate(evoked_mag.info['chs']):
         evoked_mag.info['chs'][i]['ch_name'] = evoked_mag.info['chs'][i]['ch_name'][:-1]+'x'
         evoked_mag.info['chs'][i]['unit'] = 201  # change unit to T/m
-
-    # get magnetometer layout for platting, replace magnetometer names as above
-    laym = mne.channels.read_layout('Vectorview-mag')
-    for i, nm in enumerate(laym.names):
-        laym.names[i] = nm[:-1]+'x'
 
     # replace magnetometer data array with combined gradiometer data
     evoked_mag.data = np.zeros(evoked_mag.data.shape)
