@@ -8,7 +8,6 @@ Plot combined responses in topographic plot (XPlotter style).
 NOTE: run with ipython --matplotlib -i -- gradi_vectorplot_py [args]
 so that single-channel plot (left click on topographic display) works properly.
 
-Tested with Python 2.7, MNE 0.11.0
 
 
 @author: jussi (jnu@iki.fi)
@@ -56,7 +55,7 @@ for ind in picks_gradc:
         ch_names_gradc.append(ch[:-1]+'x')
     
 # create evoked set with magnetometer channels only
-evoked_mag = evoked.pick_types(meg='mag', copy=True)
+evoked_mag = evoked.pick_types(meg='mag')
 
 # change channel names of evoked set to represent gradiometer pairs (e.g. MEG 2041 -> MEG 204x)
 for i,nm in enumerate(evoked_mag.ch_names):
