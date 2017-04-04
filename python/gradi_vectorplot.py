@@ -25,6 +25,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os.path as op
 from scipy import signal
+from mne.channels.layout import _merge_grad_data, _pair_grad_sensors
 
 
 # order of lowpass IIR filter
@@ -41,6 +42,8 @@ parser.add_argument('files', metavar='evoked_file',
                     help='Name of evoked fiff file', nargs='+')
 parser.add_argument('--lowpass', type=float, metavar='f',
                     default=None, help='Lowpass frequency (Hz)')
+parser.add_argument('--baseline', nargs=2, metavar=('t0', 't1'),
+                    help='Start and end of baseline period (s)')
 args = parser.parse_args()
 
 # read evoked data
@@ -57,6 +60,14 @@ if nev > len(colors):
     raise ValueError('Too many evoked sets')
 
 # preprocess
+
+if args.baseline:
+    bl0 = float(args.baseline[0])
+    bl1 = float(args.baseline[1])
+    if bl0 >= bl1:
+        raise ValueError('Baseline end should be larger than start')
+
+
 for evoked in evokeds:
 
     # filter
@@ -71,6 +82,27 @@ for evoked in evokeds:
     pch, plat = evoked.get_peak(ch_type='grad', merge_grads=True)
     print('%s peak amplitude: channel %s, latency %.2f ms' %
           (evoked.comment, pch, plat*1e3))
+
+    # compute std on baseline
+    if args.baseline:
+        print('Baseline std. dev for each channel pair:')
+        i0 = evoked.time_as_index(bl0)
+        i1 = evoked.time_as_index(bl1)
+
+        picks = _pair_grad_sensors(evoked.info, topomap_coords=False)
+        data = evoked.data
+        ch_names = evoked.ch_names
+
+        data = data[picks]
+        ch_names = [ch_names[k] for k in picks]
+
+        data = _merge_grad_data(data)
+        ch_names = [ch_name[:-1] + 'X' for ch_name in ch_names[::2]]
+
+        bl_stds = data[:, i0:i1].std(axis=1)
+        for std, ch in zip(bl_stds, ch_names):
+            print('%s: %.4f fT/cm' % (ch, std*1e13))
+
 
 colors_ = colors[:nev]
 
