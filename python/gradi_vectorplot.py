@@ -68,13 +68,15 @@ for evoked in evokeds:
         evoked.data = signal.filtfilt(b, a, data)
 
     # get peak amplitude - TODO: does not combine grads
-    pch, plat = evoked.get_peak(ch_type='grad')
+    pch, plat = evoked.get_peak(ch_type='grad', merge_grads=True)
     print('%s peak amplitude: channel %s, latency %.2f ms' %
           (evoked.comment, pch, plat*1e3))
 
 colors_ = colors[:nev]
 
-mne.viz.plot_evoked_topo(evokeds, color=colors_, merge_grads=True)
+# we do our own legend with filenames
+mne.viz.plot_evoked_topo(evokeds, color=colors_, merge_grads=True,
+                         legend=False)
 
 conditions = ['%s:%s' % (fname, e.comment) for
               fname, e in zip(filenames, evokeds)]
