@@ -1,4 +1,4 @@
 #!/bin/bash
 # runs gradi_vectorplot in a suitable IPython shell
-PYPATH="/opt/biomag_helsinki_git/python"
+PYPATH="/opt/meg_scripts/python"
 ipython -i --matplotlib -- $PYPATH/gradi_vectorplot.py "$@"

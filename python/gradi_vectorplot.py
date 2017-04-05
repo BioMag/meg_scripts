@@ -68,7 +68,9 @@ if args.baseline:
         raise ValueError('Baseline end should be larger than start')
 
 
-for evoked in evokeds:
+for evoked, fn in zip(evokeds, filenames):
+    
+    evoked.comment = fn + ': ' + evoked.comment
 
     # filter
     if args.lowpass:
@@ -86,8 +88,8 @@ for evoked in evokeds:
     # compute std on baseline
     if args.baseline:
         print('Baseline std. dev for each channel pair:')
-        i0 = evoked.time_as_index(bl0)
-        i1 = evoked.time_as_index(bl1)
+        i0 = evoked.time_as_index(bl0)[0]
+        i1 = evoked.time_as_index(bl1)[0]
 
         picks = _pair_grad_sensors(evoked.info, topomap_coords=False)
         data = evoked.data
@@ -107,17 +109,8 @@ for evoked in evokeds:
 colors_ = colors[:nev]
 
 # we do our own legend with filenames
-mne.viz.plot_evoked_topo(evokeds, color=colors_, merge_grads=True,
-                         legend=False)
+mne.viz.plot_evoked_topo(evokeds, color=colors_, merge_grads=True)
 
-conditions = ['%s:%s' % (fname, e.comment) for
-              fname, e in zip(filenames, evokeds)]
-
-positions = np.linspace(.8, .98, nev)
-
-for cond, col, pos in zip(conditions, colors_, positions):
-    plt.figtext(0.99, pos, cond, color=col, fontsize=12,
-                horizontalalignment='right')
 
 plt.show()
 
