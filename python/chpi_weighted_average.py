@@ -139,7 +139,7 @@ if __name__ == '__main__':
     help_epoch_end = 'Epoch end relative to trigger (s)'
     help_plot_snr = 'Whether to plot SNR or not'
     help_stim_channel = 'Which stimulus channel to scan for events'
-    help_sti_mask = 'Mask to apply to the stim channel'
+    help_sti_ = 'Mask to apply to the stim channel'
     parser.add_argument('snr_file', help=help_snr_file)
     parser.add_argument('--epochs_file', type=str, default=None,
                         help=help_epochs_file)
