@@ -13,8 +13,9 @@ import argparse
 import sys
 
 # parse command line
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(description='Average epochs according to EMG')
 parser.add_argument('raw_fname', help='Name of raw fiff file')
+parser.add_argument('category', help='Name of averaging category')
 parser.add_argument('--magrej', type=float, default=None,
                     help='Magnetometer rejection limit (T)')
 parser.add_argument('--gradrej', type=float, default=None,
@@ -28,17 +29,17 @@ parser.add_argument('--eogrej', type=float, default=None,
 args = parser.parse_args()
 
 
-# raw_fname = u'/net/tera2/data/neuro-data/kekeke_kuu/Jussille_silmänliikkeet/5131/IE_taktilli_OB_Lhand_raw_st16_mc_b.fif'
-# raw_fname = u'/net/tera2/data/neuro-data/kekeke_kuu/Jussille_silmänliikkeet/3282/OV_taktiiliOB_RHand_raw_st16_mc_bb.fif'
-
-
 raw = mne.io.read_raw_fif(args.raw_fname, preload=True)
 
 raw_fname_ = op.split(args.raw_fname)[1]
 out_fname = op.splitext(raw_fname_)[0] + '_responses-ave.fif'
 
+if args.category not in raw.acqparser._categories:
+    print('Averaging category not found in data: %s' % args.category)
+    sys.exit()
+
 # mask high trigger lines to get rid of videoMEG trigger etc.
-cnd = raw.acqparser.get_condition(raw, 'Pikkurilli', uint_cast=True,
+cnd = raw.acqparser.get_condition(raw, args.category, uint_cast=True,
                                   mask=2**8-1)
 # set rejection criteria
 reject = {'mag': args.magrej, 'grad': args.gradrej, 'eog': args.eogrej}
@@ -46,10 +47,10 @@ flat = {'mag': args.magflat, 'grad': args.gradflat}
 # filter None (unset) values away
 reject = {k: v for k, v in reject.items() if v is not None}
 flat = {k: v for k, v in flat.items() if v is not None}
+
 # gather epochs
 eps = mne.Epochs(raw, reject=reject, flat=flat, preload=True, **cnd)
 print('\n')
-
 if len(eps) == 0:
     print('No epochs left after rejection!')
     sys.exit()
@@ -57,35 +58,21 @@ if len(eps) == 0:
 # pick EMG chs only
 emg_picks = mne.pick_types(eps.info, meg=False, emg=True)
 # start gui for rejecting epochs
-# at this point, bad epochs have been dropped already
-eps.plot(picks=emg_picks, block=True, title='Please select bad epochs')
+# at this point, bad epochs (eog etc.) have been dropped already
+eps.plot(picks=emg_picks, block=True, title='Please select unwanted epochs')
 # print stats
 user_dropped = [k for k, reason in enumerate(eps.drop_log) if 'USER' in reason]
 other_dropped = [k for k, reason in enumerate(eps.drop_log) if reason and
                  'USER'not in reason]
 
 if user_dropped:
-    print('%d epochs rejected by user:' % len(user_dropped), *user_dropped)
+    print('%d epochs rejected by user, indices:' % len(user_dropped),
+          *user_dropped)
 if other_dropped:
-    print('%d epochs rejected by amplitude/flatness:' % len(other_dropped),
-          *other_dropped)
+    print('%d epochs rejected by amplitude/flatness, indices:'
+          % len(other_dropped), *other_dropped)
 print('%d epochs remain' % len(eps))
+
 evs = eps.average()
 print('Saving %s' % out_fname)
 evs.save(out_fname)
-
-
-
-
-
-
-            
-            
-            
-        
-        
-
-
-
-
-
