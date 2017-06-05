@@ -26,6 +26,8 @@ parser.add_argument('--gradflat', type=float, default=None,
                     help='Gradiometer flatness limit (T/m)')
 parser.add_argument('--eogrej', type=float, default=None,
                     help='EOG rejection limit (V)')
+parser.add_argument('--output', type=str, help='name of output file',
+		    default=None)
 args = parser.parse_args()
 
 
@@ -74,5 +76,6 @@ if other_dropped:
 print('%d epochs remain' % len(eps))
 
 evs = eps.average()
+out_fname = out_fname if args.output is None else args.output
 print('Saving %s' % out_fname)
 evs.save(out_fname)
