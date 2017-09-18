@@ -2,7 +2,7 @@
 """
 gradi_vectorplot.py
 
-Combine gradiometer data from evoked responses into a pairwise vector sum. 
+Combine gradiometer data from evoked responses into a pairwise vector sum.
 Plot combined responses in topographic plot (XPlotter style).
 
 NOTE: run with ipython --matplotlib -i -- gradi_vectorplot_py [args]
@@ -15,7 +15,6 @@ so that single-channel plot (left click on topographic display) works properly.
 
 
 from __future__ import print_function
-
 
 import sys
 import mne
@@ -67,44 +66,43 @@ if args.baseline:
     if bl0 >= bl1:
         raise ValueError('Baseline end should be larger than start')
 
-
+print('\nPeak amplitudes:\n')
 for evoked, fn in zip(evokeds, filenames):
-    
-    evoked.comment = fn + ': ' + evoked.comment
+    evoked.comment = '%s/ %s' % (fn, evoked.comment)  # add filename
 
     # filter
     if args.lowpass:
-        data = evoked.data
         sfreq = evoked.info['sfreq']
         lpfreqn = 2 * np.array(args.lowpass) / sfreq
         b, a = signal.butter(BORD, lpfreqn)
-        evoked.data = signal.filtfilt(b, a, data)
+        evoked.data = signal.filtfilt(b, a, evoked.data)
 
-    # get peak amplitude - TODO: does not combine grads
-    pch, plat = evoked.get_peak(ch_type='grad', merge_grads=True)
-    print('%s peak amplitude: channel %s, latency %.2f ms' %
-          (evoked.comment, pch, plat*1e3))
+    # create merged data matrix and names for paired channels
+    picks = _pair_grad_sensors(evoked.info, topomap_coords=False)
+    data = evoked.data
+    ch_names = evoked.ch_names
+    data = data[picks]
+    ch_names = [ch_names[k] for k in picks]
+    data = _merge_grad_data(data)
+    ch_names = [ch_name[:-1] + 'X' for ch_name in ch_names[::2]]
+
+    # get peak amplitude
+    pch, pind = evoked.get_peak(ch_type='grad', merge_grads=True,
+                                time_as_index=True)
+    plat = evoked.times[pind]
+    pch_ind = ch_names.index(pch)
+    pamp = data[pch_ind, pind]
+    print('%s:\n%.3f fT/cm at %.2f ms, channel pair %s\n' %
+          (evoked.comment, pamp*1e13, plat*1e3, pch))
 
     # compute std on baseline
     if args.baseline:
         print('Baseline std. dev for each channel pair:')
         i0 = evoked.time_as_index(bl0)[0]
         i1 = evoked.time_as_index(bl1)[0]
-
-        picks = _pair_grad_sensors(evoked.info, topomap_coords=False)
-        data = evoked.data
-        ch_names = evoked.ch_names
-
-        data = data[picks]
-        ch_names = [ch_names[k] for k in picks]
-
-        data = _merge_grad_data(data)
-        ch_names = [ch_name[:-1] + 'X' for ch_name in ch_names[::2]]
-
         bl_stds = data[:, i0:i1].std(axis=1)
         for std, ch in zip(bl_stds, ch_names):
             print('%s: %.4f fT/cm' % (ch, std*1e13))
-
 
 colors_ = colors[:nev]
 
@@ -113,4 +111,3 @@ mne.viz.plot_evoked_topo(evokeds, color=colors_, merge_grads=True)
 
 
 plt.show()
-
