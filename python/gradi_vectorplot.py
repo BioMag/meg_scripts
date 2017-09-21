@@ -27,6 +27,17 @@ from scipy import signal
 from mne.channels.layout import _merge_grad_data, _pair_grad_sensors
 
 
+def _pair_grads(evoked):
+    # create merged data matrix and names for paired channels
+    picks = _pair_grad_sensors(evoked.info, topomap_coords=False)
+    data = evoked.data
+    ch_names = evoked.ch_names
+    data = data[picks]
+    ch_names = [ch_names[k] for k in picks]
+    data = _merge_grad_data(data)
+    ch_names = [ch_name[:-1] + 'X' for ch_name in ch_names[::2]]
+    return data, ch_names
+
 # order of lowpass IIR filter
 BORD = 5
 # colors for evoked sets
@@ -43,6 +54,8 @@ parser.add_argument('--lowpass', type=float, metavar='f',
                     default=None, help='Lowpass frequency (Hz)')
 parser.add_argument('--baseline', nargs=2, metavar=('t0', 't1'),
                     help='Start and end of baseline period (s)')
+parser.add_argument('--search', nargs=2, metavar=('t0', 't1'),
+                    help='Start and end of peak search interval (s)')
 args = parser.parse_args()
 
 # read evoked data
@@ -66,43 +79,53 @@ if args.baseline:
     if bl0 >= bl1:
         raise ValueError('Baseline end should be larger than start')
 
+if args.search:
+    p0 = float(args.search[0])
+    p1 = float(args.search[1])
+    if p0 >= p1:
+        raise ValueError('End of search period should be larger than start')
+
 print('\nPeak amplitudes:\n')
 for evoked, fn in zip(evokeds, filenames):
-    evoked.comment = '%s/ %s' % (fn, evoked.comment)  # add filename
+
+    # add filename to comment
+    evoked.comment = '%s/ %s' % (fn, evoked.comment)
+
+    # compute std on baseline - NOTE: from unfiltered data
+    if args.baseline:
+        data, ch_names = _pair_grads(evoked)
+        i0 = evoked.time_as_index(bl0)[0]
+        i1 = evoked.time_as_index(bl1)[0]
+        bl_stds = data[:, i0:i1].std(axis=1)
+        print('Baseline std. dev for each channel pair:')
+        for std, ch in zip(bl_stds, ch_names):
+            print('%s: %.4f fT/cm' % (ch, std*1e13))
 
     # filter
+    # TODO: eventually (0.15) use evoked.filter()
     if args.lowpass:
         sfreq = evoked.info['sfreq']
         lpfreqn = 2 * np.array(args.lowpass) / sfreq
         b, a = signal.butter(BORD, lpfreqn)
         evoked.data = signal.filtfilt(b, a, evoked.data)
 
-    # create merged data matrix and names for paired channels
-    picks = _pair_grad_sensors(evoked.info, topomap_coords=False)
-    data = evoked.data
-    ch_names = evoked.ch_names
-    data = data[picks]
-    ch_names = [ch_names[k] for k in picks]
-    data = _merge_grad_data(data)
-    ch_names = [ch_name[:-1] + 'X' for ch_name in ch_names[::2]]
+    # to limit peak search into an interval, crop the data
+    if args.search:
+        evoked_ = evoked.copy()  # to avoid cropping the original
+        evoked_.crop(tmin=p0, tmax=p1)
+    else:
+        evoked_ = evoked
 
     # get peak amplitude
-    pch, pind = evoked.get_peak(ch_type='grad', merge_grads=True,
-                                time_as_index=True)
-    plat = evoked.times[pind]
+    data, ch_names = _pair_grads(evoked_)
+    pch, pind = evoked_.get_peak(ch_type='grad', merge_grads=True,
+                                 time_as_index=True)
+    plat = evoked_.times[pind]
     pch_ind = ch_names.index(pch)
     pamp = data[pch_ind, pind]
     print('%s:\n%.3f fT/cm at %.2f ms, channel pair %s\n' %
-          (evoked.comment, pamp*1e13, plat*1e3, pch))
+          (evoked_.comment, pamp*1e13, plat*1e3, pch))
 
-    # compute std on baseline
-    if args.baseline:
-        print('Baseline std. dev for each channel pair:')
-        i0 = evoked.time_as_index(bl0)[0]
-        i1 = evoked.time_as_index(bl1)[0]
-        bl_stds = data[:, i0:i1].std(axis=1)
-        for std, ch in zip(bl_stds, ch_names):
-            print('%s: %.4f fT/cm' % (ch, std*1e13))
 
 colors_ = colors[:nev]
 
