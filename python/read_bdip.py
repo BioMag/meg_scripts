@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Read Elekta/Neuromag .bdip files
+Read Elekta/Neuromag .bdip file and write the dipole data into Excel file.
 
 @author: jnu@iki.fi
 """
