@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Created on Mon May 29 15:52:33 2017
+Average epochs based on EMG signal. User can select unwanted epochs.
 
 @author: jussi
 """
