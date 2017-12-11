@@ -3,17 +3,17 @@
 """
 Read and analyze Elekta/Neuromag .mdip file (exported source waveform)
 
-lines:
+mdip lines are as follows (excl. comments):
+
     ndip nsamp
     t0 t1 dt
 
-    (following 3 lines for each dipole)
+    (repeat following 3 lines for each dipole)
     1 (?)
     x y z Qx Qy Qz
     waveform (Q as func of time)
 
     GOF as func of time
-
 
 @author: jnu@iki.fi
 """
@@ -26,11 +26,9 @@ import numpy as np
 def _datalines(fn):
     """Yield non-comment lines from text file fn"""
     with open(fn) as f:
-        s = f.readline()
-        while s:
-            if s[0] != '#':
-                yield s
-            s = f.readline()
+        for line in f:
+            if line[0] != '#':
+                yield line
 
 
 if __name__ == '__main__':
@@ -47,17 +45,14 @@ if __name__ == '__main__':
           % (args.fn, 2*args.winl+1))
 
     # read header
-    ndip = int(lines[0][0])
-    nsamp = int(lines[0][1])
-    t0 = lines[1][0]
-    t1 = lines[1][1]
-    dt = lines[1][2]
+    ndip, nsamp = lines[0]
+    t0, t1, dt = lines[1]
     t = np.arange(t0, t1, dt)
     print('%d dipole(s), %d samples, time axis %.1f..%.1f ms'
           % (ndip, nsamp, t0, t1))
 
     # read the waveform for each dipole
-    for k in range(ndip):
+    for k in range(int(ndip)):
         dip = lines[3 + k * 3]
         wave = lines[4 + k * 3]
         maxind = np.argmax(abs(wave))
