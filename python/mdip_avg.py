@@ -38,6 +38,9 @@ if __name__ == '__main__':
                                                  'file')
     parser.add_argument('fn', help='Name of mdip file')
     parser.add_argument('winl', type=int, help='Window half length (ms)')
+    parser.add_argument('--pos', help='Positive peaks only',
+                        action='store_true')
+
     args = parser.parse_args()
     lines = [np.fromstring(l, sep=' ') for l in _datalines(args.fn)]
 
@@ -55,11 +58,12 @@ if __name__ == '__main__':
     for k in range(int(ndip)):
         dip = lines[3 + k * 3]
         wave = lines[4 + k * 3]
-        maxind = np.argmax(abs(wave))
+        waveabs = wave if args.pos else abs(wave)
+        maxind = np.argmax(waveabs)
         maxt = t[maxind]
         win0, win1 = maxt - args.winl, maxt + args.winl
         ind0, ind1 = np.argmin(abs(t - win0)), np.argmin(abs(t - win1))
         avg = wave[ind0:ind1].mean()
         print('dipole %d: Qavg = %.2f nAm on period %.1f..%.1f ms'
               ' (max %.2f nAm at %.1f ms)'
-              % (k+1, avg, win0, win1, wave.max(), maxt))
+              % (k+1, avg, win0, win1, wave[maxind], maxt))
