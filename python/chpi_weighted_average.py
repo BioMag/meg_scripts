@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Weighted averaging of epochs according to SNR of continuous HPI (cHPI) signal.

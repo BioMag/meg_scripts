@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Read Elekta/Neuromag .bdip files
+Read Elekta/Neuromag .bdip file and write the dipole data into Excel file.
 
 @author: jnu@iki.fi
 """
@@ -72,7 +72,8 @@ def _nice_units(vals):
 
 
 def _filter_vars(vars):
-    """Return indices of desired variables"""
+    """Delete uninteresting variables. Return indices and names of
+    interesting ones."""
     _exclude = 'r0', 'error_matrix', 'single_errors'
     inds_vars = [(i, var) for i, var in enumerate(vars)
                  if not any([s in var for s in _exclude])]
