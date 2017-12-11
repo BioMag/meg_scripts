@@ -39,12 +39,12 @@ if __name__ == '__main__':
                                                  'amplitudes from xfit mdip '
                                                  'file')
     parser.add_argument('fn', help='Name of mdip file')
-    parser.add_argument('winl', type=int, help='Window half length')
+    parser.add_argument('winl', type=int, help='Window half length (ms)')
     args = parser.parse_args()
     lines = [np.fromstring(l, sep=' ') for l in _datalines(args.fn)]
 
-    print('Analyzing %s with averaging window of %d samples'
-          % (args.fn, args.winl))
+    print('Analyzing %s with averaging window of %d ms'
+          % (args.fn, 2*args.winl+1))
 
     # read header
     ndip = int(lines[0][0])
@@ -62,6 +62,9 @@ if __name__ == '__main__':
         wave = lines[4 + k * 3]
         maxind = np.argmax(wave)
         maxt = t[maxind]
-        avg = wave[maxind-args.winl:maxind+args.winl].mean()
-        print('dipole %d: Qavg = %.2f nAm around the maximum'
-              ' (%.2f nAm at %.2f ms)' % (k+1, avg, wave.max(), maxt))
+        win0, win1 = maxt - args.winl, maxt + args.winl
+        ind0, ind1 = np.argmin(abs(t - win0)), np.argmin(abs(t - win1))
+        avg = wave[ind0:ind1].mean()
+        print('dipole %d: Qavg = %.2f nAm on period %.2f..%.2f ms'
+              ' (max %.2f nAm at %.2f ms)'
+              % (k+1, avg, win0, win1, wave.max(), maxt))
