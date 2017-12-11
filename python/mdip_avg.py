@@ -60,11 +60,11 @@ if __name__ == '__main__':
     for k in range(ndip):
         dip = lines[3 + k * 3]
         wave = lines[4 + k * 3]
-        maxind = np.argmax(wave)
+        maxind = np.argmax(abs(wave))
         maxt = t[maxind]
         win0, win1 = maxt - args.winl, maxt + args.winl
         ind0, ind1 = np.argmin(abs(t - win0)), np.argmin(abs(t - win1))
         avg = wave[ind0:ind1].mean()
-        print('dipole %d: Qavg = %.2f nAm on period %.2f..%.2f ms'
-              ' (max %.2f nAm at %.2f ms)'
+        print('dipole %d: Qavg = %.2f nAm on period %.1f..%.1f ms'
+              ' (max %.2f nAm at %.1f ms)'
               % (k+1, avg, win0, win1, wave.max(), maxt))
