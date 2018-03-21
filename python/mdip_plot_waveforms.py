@@ -86,7 +86,7 @@ if __name__ == '__main__':
     wall = np.array(waves_all)
     wall_avg = wall.mean(axis=0)
     plt.figure()
-    plt.plot(wall_avg)
+    plt.plot(t, wall_avg)
     plt.title('Averaged waveform (dipole %d)' % args.dipn)
     plt.xlabel('Time (ms)')
     plt.ylabel('Dipole amplitude (nAm)')
