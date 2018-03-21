@@ -1,0 +1,3 @@
+#!/bin/bash
+PYPATH="/opt/meg_scripts/python"
+ipython -i --matplotlib -- $PYPATH/mdip_plot_waveforms.py "$@"
