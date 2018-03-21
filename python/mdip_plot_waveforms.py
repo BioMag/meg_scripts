@@ -57,6 +57,10 @@ if __name__ == '__main__':
                         metavar='filename')
     parser.add_argument('--dipn', type=int, default=1,
                         help='index of dipole (0 for the last one)')
+    parser.add_argument('--autoscale', help='autoscale average plot',
+                        action='store_true')
+    parser.add_argument('--legend', help='create a legend',
+                        action='store_true')
     args = parser.parse_args()
     dipn = args.dipn - 1  # 1-based index, 0 is last (becomes -1)
     waves_all = list()
@@ -72,10 +76,13 @@ if __name__ == '__main__':
         plt.plot(t, wave)
         waves_all.append(wave)
 
-    plt.legend(args.fns)
+    if args.legend:
+        plt.legend(args.fns)
+
     plt.title('Superposed waveforms (dipole %d)' % args.dipn)
     plt.xlabel('Time (ms)')
     plt.ylabel('Dipole amplitude (nAm)')
+    ylim = plt.gca().get_ylim()
     wall = np.array(waves_all)
     wall_avg = wall.mean(axis=0)
     plt.figure()
@@ -83,7 +90,8 @@ if __name__ == '__main__':
     plt.title('Averaged waveform (dipole %d)' % args.dipn)
     plt.xlabel('Time (ms)')
     plt.ylabel('Dipole amplitude (nAm)')
-
+    if not args.autoscale:
+        plt.gca().set_ylim(ylim[0], ylim[1])
 
 
 
