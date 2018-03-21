@@ -73,14 +73,14 @@ if __name__ == '__main__':
         waves_all.append(wave)
 
     plt.legend(args.fns)
-    plt.title('Superposed waveforms (dipole %d)' % dipn)
+    plt.title('Superposed waveforms (dipole %d)' % args.dipn)
     plt.xlabel('Time (ms)')
     plt.ylabel('Dipole amplitude (nAm)')
     wall = np.array(waves_all)
     wall_avg = wall.mean(axis=0)
     plt.figure()
     plt.plot(wall_avg)
-    plt.title('Averaged waveform (dipole %d)' % dipn)
+    plt.title('Averaged waveform (dipole %d)' % args.dipn)
     plt.xlabel('Time (ms)')
     plt.ylabel('Dipole amplitude (nAm)')
 
