@@ -57,6 +57,11 @@ if __name__ == '__main__':
                         metavar='filename')
     parser.add_argument('--dipn', type=int, default=1,
                         help='index of dipole (0 for the last one)')
+    parser.add_argument('--ylim', type=float, nargs=2,
+                        help='y scale of the plot')
+    parser.add_argument('--tshift', type=float,
+                        help='time shift in seconds, e.g. 0.1 delays events '
+                        'by 100 ms')
     parser.add_argument('--autoscale', help='autoscale average plot',
                         action='store_true')
     parser.add_argument('--legend', help='create a legend',
@@ -77,6 +82,8 @@ if __name__ == '__main__':
             raise ValueError('Dipole #%d does not exist in %s' %
                              (args.dipn, fn))
         wave = waves[dipn]
+        if args.tshift is not None:
+            t += args.tshift * 1e3
         plt.plot(t, wave)
         waves_all.append(wave)
 
@@ -87,6 +94,8 @@ if __name__ == '__main__':
     plt.xlabel('Time (ms)')
     plt.ylabel('Dipole amplitude (nAm)')
     ylim = plt.gca().get_ylim()
+    if args.ylim:
+        plt.gca().set_ylim(args.ylim[0], args.ylim[1])
 
     if args.average:
         plt.figure()
